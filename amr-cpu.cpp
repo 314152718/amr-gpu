@@ -20,7 +20,13 @@ unsigned int transposeToHilbert(const unsigned int X[N_dim], const int L) {
 }
 
 void hilbertToTranspose(unsigned int X[N_dim], const unsigned int hindex, const int L) {
-    // TODO, modify X in place
+    unsigned int h = hindex;
+    for (short i = 0; i < N_dim; ++i) X[i] = 0;
+    for (short i = 0; i < N_dim * L; ++i) {
+        short a = (N_dim - (i % N_dim) - 1);
+        X[a] |= (h & 1) << (i / N_dim);
+        h >>= 1;
+    }
 }
 
 /* 
