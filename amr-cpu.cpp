@@ -117,6 +117,7 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
             double y = idx_cell.j * dx + dx / 2;
             double z = idx_cell.k * dx + dx / 2;
             cell.rho = rhoFunc(x, y, z);
+            // TODO: Add flag_leaf and flag_faces
             grid[offset + hindex] = cell;
             // TODO: populate hash table
         }
