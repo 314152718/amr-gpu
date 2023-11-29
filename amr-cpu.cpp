@@ -8,29 +8,18 @@
 
 using namespace std;
 
-struct idx4 {
-    int i, j, k, L;
-};
-
-struct Cell {
-    int i, j, k, L;
-    double rho;
-    int flag_leaf;
-    int flag_faces[6];
-};
-
-int transposeToHilbert(const unsigned int* X, const int L) {
-    unsigned int h = 0, n = 0;
+unsigned int transposeToHilbert(const unsigned int X[N_dim], const int L) {
+    unsigned int hindex = 0, n = 0;
     for (short i = 0; i < N_dim; ++i) {
         for (int b = 0; b < L; ++b) {
-            n =  (b * N_dim) + i;
-            h |= (((X[N_dim-i-1] >> b) & 1) << n);
+            n = (b * N_dim) + i;
+            hindex |= (((X[N_dim-i-1] >> b) & 1) << n);
         }
     }
-    return h;
+    return hindex;
 }
 
-void hilbertToTranspose(unsigned int* X, const unsigned int h, const int L) {
+void hilbertToTranspose(unsigned int X[N_dim], const unsigned int hindex, const int L) {
     // TODO, modify X in place
 }
 
@@ -40,8 +29,8 @@ Compute the Hilbert index for a given 4-idx (i, j, k, L)
 Args
 idx4: 4-index
 */
-void hindex(idx4 idx_cell, int& h_index) { // Axes to transpose
-    int X[3] = {idx_cell.i, idx_cell.j, idx_cell.k};
+void getHindex(idx4 idx_cell, unsigned int& hindex) { // Axes to transpose
+    unsigned int X[3] = {idx_cell.i, idx_cell.j, idx_cell.k};
     int L = idx_cell.L;
     unsigned int m = 1 << (L - 1), p, q, t;
     int i;
@@ -72,9 +61,8 @@ void hindex(idx4 idx_cell, int& h_index) { // Axes to transpose
         X[i] ^= t;
     }
     // convert transpose to hindex
-    transposeToHilbert(X, L);
+    hindex = transposeToHilbert(X, L);
     // X[0], X[1], X[2] needs to be converted into single number
-    return hindex;
 }
 
 /* 
@@ -85,9 +73,10 @@ X: Hilbert index transpose
 L: AMR level
 N_dim: number of dimensions
 */
-void hindexInv(unsigned int hindex, int L, int N_dim, idx4& cell_idx) { // Transpose to axes
+void getHindexInv(unsigned int hindex, int L, idx4& cell_idx) { // Transpose to axes
     // TODO: convert hindex to X
-    hilbertToTranspose(hindex, L);
+    unsigned int X[N_dim];
+    hilbertToTranspose(X, hindex, L);
 
     
     unsigned int n = 2 << (L - 1), p, q, t;
@@ -111,19 +100,17 @@ void hindexInv(unsigned int hindex, int L, int N_dim, idx4& cell_idx) { // Trans
             X[i] ^= t;
         }
     } // exchange
-    idx4 cell_idx;
     cell_idx.i = X[0], cell_idx.j = X[1], cell_idx.k = X[2];
     cell_idx.L = L;
-    return cell_idx;
 }
 
-void make_base_grid() {
+void makeBaseGrid(Cell (&grid)[N_cell_max]) {
     int offset;
     for (int L=0; L <= L_base; L++) {
         offset = (pow(2, N_dim * L) - 1) / (pow(2, N_dim) - 1);
         for (int hindex=0; hindex < pow(2, N_dim * L); hindex++) {
             idx4 idx_cell;
-            hindexInv(hindex, L, idx_cell);
+            getHindexInv(hindex, L, idx_cell);
             Cell cell;
             double dx = 1 / pow(2, L);
             double x = idx_cell.i * dx + dx / 2;
@@ -146,12 +133,12 @@ double rhoFunc(double x, double y, double z) {
 }
 
 int main() {
-    unsigned int X[3] = {20, 10, 30};
-    hindex(X, 5, N_dim);
-    cout << X[0] << endl;
-    
-    // testing transposeToHilbert
-    
-    unsigned int X[] = {22, 8, 25};
-    cout << transposeToHilbert(X, 5) << endl; // L = 5
+    idx4 idx_cell;
+    idx_cell.i = 20;
+    idx_cell.j = 20;
+    idx_cell.k = 20;
+    idx_cell.L = 5;
+    unsigned int hindex;
+    getHindex(idx_cell, hindex);
+    cout << hindex << endl;
 }
