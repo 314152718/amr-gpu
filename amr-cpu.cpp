@@ -118,6 +118,7 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
             double z = idx_cell.k * dx + dx / 2;
             cell.rho = rhoFunc(x, y, z);
             grid[offset + hindex] = cell;
+            // TODO: populate hash table
         }
     }
 }
