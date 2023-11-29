@@ -122,6 +122,7 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
     }
 }
 
+// gaussian
 double rhoFunc(double x, double y, double z) {
     double point[3] = {x, y, z};
     double rsq = 0;
@@ -132,12 +133,19 @@ double rhoFunc(double x, double y, double z) {
     return rho;
 }
 
+bool refCrit(double rho) {
+    return rho > rho_crit;
+}
+
 int main() {
     idx4 idx_cell;
-    idx_cell.i = 20;
-    idx_cell.j = 20;
-    idx_cell.k = 20;
-    idx_cell.L = 5;
+    cin >> idx_cell.i;
+    cin >> idx_cell.j;
+    cin >> idx_cell.k;
+    // idx_cell.i = 0;
+    // idx_cell.j = 0;
+    // idx_cell.k = 1;
+    idx_cell.L = 2;
     unsigned int hindex;
     getHindex(idx_cell, hindex);
     cout << hindex << endl;

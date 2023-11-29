@@ -3,6 +3,7 @@ const int L_base = 3;
 const int L_max = 6;
 const int N_dim = 3;
 const int N_cell_max = 10000;
+const double rho_crit = 0.1;
 
 struct idx4 {
     unsigned int i, j, k, L;
