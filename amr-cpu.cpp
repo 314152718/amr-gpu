@@ -39,14 +39,17 @@ Args
 idx4: 4-index
 */
 void getHindex(idx4 idx_cell, uint& hindex) { // Axes to transpose
-    uint X[3] = {idx_cell.i, idx_cell.j, idx_cell.k};
+    uint X[3];
+    for (int i = 0; i++; i < N_dim) {
+        X[i] = idx_cell.idx3[i];
+    }
     int L = idx_cell.L;
     uint m = 1 << (L - 1), p, q, t;
     int i;
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
         p = q - 1;
-        for( i = X[0]; i < N_dim; i++ ) {
+        for(i = X[0]; i < N_dim; i++) {
             if (X[i] & q ) { // invert 
                 X[0] ^= p;
             } else { // exchange
@@ -82,7 +85,7 @@ X: Hilbert index transpose
 L: AMR level
 N_dim: number of dimensions
 */
-void getHindexInv(uint hindex, int L, idx4& cell_idx) { // Transpose to axes
+void getHindexInv(uint hindex, int L, idx4& idx_cell) { // Transpose to axes
     // TODO: convert hindex to X
     uint X[N_dim];
     hilbertToTranspose(X, hindex, L);
@@ -100,7 +103,7 @@ void getHindexInv(uint hindex, int L, idx4& cell_idx) { // Transpose to axes
     for (q = 2; q != n; q <<= 1) {
         p = q - 1;
     }
-    for (i = N_dim - 1; i > 0 ; i--) {
+    for (i = N_dim - 1; i > 0; i--) {
         if(X[i] & q) { // invert
             X[0] ^= p;
         } else {
@@ -109,24 +112,27 @@ void getHindexInv(uint hindex, int L, idx4& cell_idx) { // Transpose to axes
             X[i] ^= t;
         }
     } // exchange
-    cell_idx.i = X[0], cell_idx.j = X[1], cell_idx.k = X[2];
-    cell_idx.L = L;
+    for (i = 0; i < N_dim; i++) {
+        idx_cell.idx3[i] = X[i];
+    }
+    idx_cell.L = L;
 }
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]) {
     int offset;
+    double dx, coord[3];
+    idx4 idx_cell;
+    Cell cell;
     for (int L=0; L <= L_base; L++) {
         offset = (pow(2, N_dim * L) - 1) / (pow(2, N_dim) - 1);
+        dx = 1 / pow(2, L);
         for (int hindex=0; hindex < pow(2, N_dim * L); hindex++) {
-            idx4 idx_cell;
             getHindexInv(hindex, L, idx_cell);
-            Cell cell;
-            double dx = 1 / pow(2, L);
-            double x = idx_cell.i * dx + dx / 2;
-            double y = idx_cell.j * dx + dx / 2;
-            double z = idx_cell.k * dx + dx / 2;
-            cell.rho = rhoFunc(x, y, z);
-            // TODO: Add flag_leaf and flag_faces
+            for (int i = 0; i < N_dim; i++) {
+                coord[i] = idx_cell.idx3[i] * dx + dx / 2;
+            }
+            cell.rho = rhoFunc(coord);
+            cell.flag_leaf = L == L_base;
             grid[offset + hindex] = cell;
             hashtable[idx_cell] = grid[offset + hindex];
         }
@@ -134,11 +140,10 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
 }
 
 // gaussian
-double rhoFunc(const double x, const double y, const double z, const double sigma = 1.0) {
-    double point[3] = {x, y, z};
+double rhoFunc(const double coord[N_dim], const double sigma = 1.0) {
     double rsq = 0;
     for (int i = 0; i < N_dim; i++) {
-        rsq += pow(point[i] - 0.5, 2);
+        rsq += pow(coord[i] - 0.5, 2);
     }
     double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
     return rho;
@@ -148,19 +153,20 @@ bool refCrit(double rho) {
     return rho > rho_crit;
 }
 
-void grad_cell(idx4 cell_idx, Cell (&grid)[N_cell_max]) {
-    uint i = cell_idx.i;
-    uint j = cell_idx.j;
-    uint k = cell_idx.k;
-    uint L = cell_idx.i;
-    Cell cell = hashtable[cell_idx];
+bool checkIfBorder(const idx4 idx_cell, const uint dir, bool (&isBorder)[2]) {
+    isBorder[0] = idx_cell.idx3[dir] == 0;
+    isBorder[1] = idx_cell.idx3[dir] == pow(2, idx_cell.L) - 1;
+}
+
+void grad_cell(idx4 idx_cell, Cell (&grid)[N_cell_max]) {
+    Cell cell = hashtable[idx_cell];
 }
 
 int main() {
     idx4 idx_cell;
-    cin >> idx_cell.i;
-    cin >> idx_cell.j;
-    cin >> idx_cell.k;
+    cin >> idx_cell.idx3[0];
+    cin >> idx_cell.idx3[1];
+    cin >> idx_cell.idx3[2];
     // idx_cell.i = 0;
     // idx_cell.j = 0;
     // idx_cell.k = 1;
