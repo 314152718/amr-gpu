@@ -8,8 +8,11 @@
 
 using namespace std;
 
-unsigned int transposeToHilbert(const unsigned int X[N_dim], const int L) {
-    unsigned int hindex = 0, n = 0;
+Cell grid[N_cell_max];
+unordered_map<idx4, Cell> hashtable;
+
+uint transposeToHilbert(const uint X[N_dim], const int L) {
+    uint hindex = 0, n = 0;
     for (short i = 0; i < N_dim; ++i) {
         for (int b = 0; b < L; ++b) {
             n = (b * N_dim) + i;
@@ -19,8 +22,8 @@ unsigned int transposeToHilbert(const unsigned int X[N_dim], const int L) {
     return hindex;
 }
 
-void hilbertToTranspose(unsigned int X[N_dim], const unsigned int hindex, const int L) {
-    unsigned int h = hindex;
+void hilbertToTranspose(uint X[N_dim], const uint hindex, const int L) {
+    uint h = hindex;
     for (short i = 0; i < N_dim; ++i) X[i] = 0;
     for (short i = 0; i < N_dim * L; ++i) {
         short a = (N_dim - (i % N_dim) - 1);
@@ -35,10 +38,10 @@ Compute the Hilbert index for a given 4-idx (i, j, k, L)
 Args
 idx4: 4-index
 */
-void getHindex(idx4 idx_cell, unsigned int& hindex) { // Axes to transpose
-    unsigned int X[3] = {idx_cell.i, idx_cell.j, idx_cell.k};
+void getHindex(idx4 idx_cell, uint& hindex) { // Axes to transpose
+    uint X[3] = {idx_cell.i, idx_cell.j, idx_cell.k};
     int L = idx_cell.L;
-    unsigned int m = 1 << (L - 1), p, q, t;
+    uint m = 1 << (L - 1), p, q, t;
     int i;
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
@@ -79,13 +82,13 @@ X: Hilbert index transpose
 L: AMR level
 N_dim: number of dimensions
 */
-void getHindexInv(unsigned int hindex, int L, idx4& cell_idx) { // Transpose to axes
+void getHindexInv(uint hindex, int L, idx4& cell_idx) { // Transpose to axes
     // TODO: convert hindex to X
-    unsigned int X[N_dim];
+    uint X[N_dim];
     hilbertToTranspose(X, hindex, L);
 
     
-    unsigned int n = 2 << (L - 1), p, q, t;
+    uint n = 2 << (L - 1), p, q, t;
     int i;
     // Gray decode by H ^ (H/2)
     t = X[N_dim - 1] >> 1;
@@ -125,24 +128,32 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
             cell.rho = rhoFunc(x, y, z);
             // TODO: Add flag_leaf and flag_faces
             grid[offset + hindex] = cell;
-            // TODO: populate hash table
+            hashtable[idx_cell] = grid[offset + hindex];
         }
     }
 }
 
 // gaussian
-double rhoFunc(double x, double y, double z) {
+double rhoFunc(const double x, const double y, const double z, const double sigma = 1.0) {
     double point[3] = {x, y, z};
     double rsq = 0;
     for (int i = 0; i < N_dim; i++) {
         rsq += pow(point[i] - 0.5, 2);
     }
-    double rho = exp( -rsq / 2 ) / pow(2 * M_PI, 0.5);
+    double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
     return rho;
 }
 
 bool refCrit(double rho) {
     return rho > rho_crit;
+}
+
+void grad_cell(idx4 cell_idx, Cell (&grid)[N_cell_max]) {
+    uint i = cell_idx.i;
+    uint j = cell_idx.j;
+    uint k = cell_idx.k;
+    uint L = cell_idx.i;
+    Cell cell = hashtable[cell_idx];
 }
 
 int main() {
@@ -154,7 +165,7 @@ int main() {
     // idx_cell.j = 0;
     // idx_cell.k = 1;
     idx_cell.L = 2;
-    unsigned int hindex;
+    uint hindex;
     getHindex(idx_cell, hindex);
     cout << hindex << endl;
 }

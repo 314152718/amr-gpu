@@ -20,5 +20,4 @@ void hilbertToTranspose(unsigned int X[N_dim], const unsigned int h, const int L
 void getHindex(idx4 idx_cell, unsigned int& hindex);
 void getHindexInv(unsigned int hindex, int L, idx4& cell_idx);
 void makeBaseGrid();
-double rhoFunc(double x, double y, double z);
-Cell grid[N_cell_max];
+double rhoFunc(double x, double y, double z, double sigma = 1.0);
