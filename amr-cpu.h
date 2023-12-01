@@ -1,4 +1,6 @@
 
+typedef unsigned int uint;
+
 const int L_base = 3;
 const int L_max = 6;
 const int N_dim = 3;
@@ -37,4 +39,4 @@ void hilbertToTranspose(unsigned int X[N_dim], const unsigned int h, const int L
 void getHindex(idx4 idx_cell, unsigned int& hindex);
 void getHindexInv(unsigned int hindex, int L, idx4& cell_idx);
 void makeBaseGrid();
-double rhoFunc(const double coord[N_dim], double sigma = 1.0);
+double rhoFunc(const double coord[N_dim], const double sigma = 1.0);

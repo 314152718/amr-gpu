@@ -4,9 +4,13 @@
 #include <vector>
 #include <string>
 #include <cmath>
+#include <unordered_map>
+#include <stdexcept>
 #include "amr-cpu.h"
 
 using namespace std;
+
+typedef unsigned int uint;
 
 Cell grid[N_cell_max];
 unordered_map<idx4, Cell> hashtable;
@@ -118,23 +122,69 @@ void getHindexInv(uint hindex, int L, idx4& idx_cell) { // Transpose to axes
     idx_cell.L = L;
 }
 
-void makeBaseGrid(Cell (&grid)[N_cell_max]) {
+void setGridCell(const idx4 idx_cell, const uint hindex) {
+    if (checkIfExists(idx_cell)) throw runtime_error("setting existing cell");
+
     int offset;
     double dx, coord[3];
-    idx4 idx_cell;
     Cell cell;
+
+    uint offset = (pow(2, N_dim * idx_cell.L) - 1) / (pow(2, N_dim) - 1);
+    double dx = 1 / pow(2, idx_cell.L);
+    for (short i = 0; i < N_dim; i++) {
+        coord[i] = idx_cell.idx3[i] * dx + dx / 2;
+    }
+    cell.rho = rhoFunc(coord);
+    cell.flag_leaf = idx_cell.L == L_base; // this is only good for base grid set
+    grid[offset + hindex] = cell;
+    hashtable[idx_cell] = grid[offset + hindex];
+}
+
+void refineGridCell(const idx4 idx_cell) {
+    uint hindex;
+    getHindex(idx_cell, hindex);
+
+    if (!hashtable[idx_cell].flag_leaf) throw runtime_error("trying to refine non-leaf");
+    hashtable[idx_cell].flag_leaf = false;
+
+    idx4 idx_child;
+    idx_child.L = idx_cell.L + 1;
+
+    for (short dir = 0; dir < N_dim; dir++) {
+        for (short pos = 0; pos < 2; pos++) {
+            idx_child.idx3[dir] = idx_cell.idx3[dir]*2 + pos;
+            idx4 idx_child_new = idx_child; // how to copy struct?
+            setGridCell(idx_child_new, hindex);
+            hashtable[idx_cell].flag_leaf = true;
+        }
+    }
+    // refine neighbors if needed
+    idx4 idx_neighbor;
+    uint hindex_neighbor;
+    for (short dir = 0; dir < N_dim; dir++) {
+        for (short pos = 0; pos < 2; pos++) {
+            bool is_border;
+            checkIfBorder(idx_cell, dir, pos, is_border);
+            if (is_border) continue;
+            getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+            if (checkIfExists(idx_neighbor)) continue;
+
+            // if not exists, drop L by 1
+            idx_neighbor.L -= 1;
+            for (short i = 0; i < N_dim; i++) {
+                idx_neighbor.idx3[i] /= 2;
+            }
+            refineGridCell(idx_neighbor);
+        }
+    }
+}
+
+void makeBaseGrid(Cell (&grid)[N_cell_max]) {
+    idx4 idx_cell;
     for (int L=0; L <= L_base; L++) {
-        offset = (pow(2, N_dim * L) - 1) / (pow(2, N_dim) - 1);
-        dx = 1 / pow(2, L);
         for (uint hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
-            for (short i = 0; i < N_dim; i++) {
-                coord[i] = idx_cell.idx3[i] * dx + dx / 2;
-            }
-            cell.rho = rhoFunc(coord);
-            cell.flag_leaf = L == L_base;
-            grid[offset + hindex] = cell;
-            hashtable[idx_cell] = grid[offset + hindex];
+            setGridCell(idx_cell, hindex);
         }
     }
 }
@@ -182,6 +232,8 @@ void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is
 
 // get information about the neighbor cell necessary for computing the gradient
 void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho) {
+    // what do you return if this is the border of everything?
+
     idx4 idx_neighbor;
     uint idx1_parent_neighbor;
     bool is_border, is_notref;
