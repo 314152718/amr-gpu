@@ -1,6 +1,7 @@
 #define _USE_MATH_DEFINES
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 #include <cmath>
@@ -14,6 +15,8 @@ typedef unsigned int uint;
 
 Cell grid[N_cell_max];
 
+// define a hash function for the idx4 struct
+// based on the hash function from mini-ramses
 template<>
 struct hash<idx4> {
     size_t operator()(const idx4& idx_cell) const noexcept {
@@ -26,9 +29,11 @@ struct hash<idx4> {
     }
 };
 
+// create the hashtable
 unordered_map<idx4, Cell> hashtable;
 unordered_map<idx4, Cell>:: iterator hashtable_itr;
 
+// convert from transposed Hilbert index to Hilbert index
 void transposeToHilbert(const uint X[N_dim], const int L, uint &hindex) {
     uint n = 0;
     hindex = 0;
@@ -40,6 +45,7 @@ void transposeToHilbert(const uint X[N_dim], const int L, uint &hindex) {
     }
 }
 
+// convert from Hilbert index to transposed Hilbert index
 void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]) {
     uint h = hindex;
     for (short i = 0; i < N_dim; ++i) X[i] = 0;
@@ -170,7 +176,7 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
 }
 
 void setGridCell(const idx4 idx_cell, const uint hindex) {
-    if (checkIfExists(idx_cell)) throw runtime_error("setting existing cell");
+    // if (checkIfExists(idx_cell)) throw runtime_error("setting existing cell");
 
     uint offset;
     double dx, coord[3];
@@ -278,16 +284,24 @@ void calcGrad() {
     }
 }
 
-int main() {
+void writeGrid() {
+    ofstream outfile;
+    outfile.open(outfile_name);
+    outfile << "Writing this to a file.\n";
+    outfile.close();
+}
+
+void test1() {
     idx4 idx_cell;
     cin >> idx_cell.idx3[0];
     cin >> idx_cell.idx3[1];
     cin >> idx_cell.idx3[2];
-    // idx_cell.i = 0;
-    // idx_cell.j = 0;
-    // idx_cell.k = 1;
     idx_cell.L = 2;
     uint hindex;
     getHindex(idx_cell, hindex);
     cout << hindex << endl;
+}
+
+int main() {
+    makeBaseGrid(grid);
 }

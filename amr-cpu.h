@@ -23,6 +23,7 @@ const int fd_kernel[4][4] = {
     {-1, 0, 1, 2}
 };
 const int hash_constants[4] = {-1640531527, 97, 1003313, 5};
+const string outfile_name = "grid.txt";
 
 struct idx4 {
     uint idx3[N_dim];
