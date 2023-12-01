@@ -220,6 +220,7 @@ void refineGridCell(const idx4 idx_cell) {
             checkIfBorder(idx_cell, dir, pos, is_border);
             if (is_border) continue;
             getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+            // don't need to remove 'if' statements because this is part not for GPU (only gradient is)
             if (checkIfExists(idx_neighbor)) continue;
 
             // if not exists, drop L by 1
