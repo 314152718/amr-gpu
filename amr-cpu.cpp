@@ -16,8 +16,9 @@ Cell grid[N_cell_max];
 unordered_map<idx4, Cell> hashtable;
 unordered_map<idx4, Cell>:: iterator hashtable_itr;
 
-uint transposeToHilbert(const uint X[N_dim], const int L, uint &hindex) {
-    uint hindex = 0, n = 0;
+void transposeToHilbert(const uint X[N_dim], const int L, uint &hindex) {
+    uint n = 0;
+    hindex = 0;
     for (short i = 0; i < N_dim; ++i) {
         for (int b = 0; b < L; ++b) {
             n = (b * N_dim) + i;
@@ -39,7 +40,7 @@ void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]) {
 // Compute the Hilbert index for a given 4-idx (i, j, k, L)
 void getHindex(idx4 idx_cell, uint& hindex) {
     uint X[3];
-    for (short i = 0; i++; i < N_dim) {
+    for (short i = 0; i < N_dim; i++) {
         X[i] = idx_cell.idx3[i];
     }
     int L = idx_cell.L;
@@ -105,7 +106,7 @@ void getHindexInv(uint hindex, int L, idx4& idx_cell) {
 }
 
 // Multi-variate Gaussian distribution
-double rhoFunc(const double coord[N_dim], const double sigma = 1.0) {
+double rhoFunc(const double coord[N_dim], const double sigma) {
     double rsq = 0;
     for (short i = 0; i < N_dim; i++) {
         rsq += pow(coord[i] - 0.5, 2);
@@ -158,12 +159,12 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
 void setGridCell(const idx4 idx_cell, const uint hindex) {
     if (checkIfExists(idx_cell)) throw runtime_error("setting existing cell");
 
-    int offset;
+    uint offset;
     double dx, coord[3];
     Cell cell;
 
-    uint offset = (pow(2, N_dim * idx_cell.L) - 1) / (pow(2, N_dim) - 1);
-    double dx = 1 / pow(2, idx_cell.L);
+    offset = (pow(2, N_dim * idx_cell.L) - 1) / (pow(2, N_dim) - 1);
+    dx = 1 / pow(2, idx_cell.L);
     for (short i = 0; i < N_dim; i++) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }

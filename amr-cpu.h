@@ -1,10 +1,10 @@
 
 typedef unsigned int uint;
 
-const int L_base = 3;
-const int L_max = 6;
-const int N_dim = 3;
-const int N_cell_max = 10000;
+const uint L_base = 3;
+const uint L_max = 6;
+const uint N_dim = 3;
+const uint N_cell_max = 10000;
 const double rho_crit = 0.1;
 const double rho_boundary = 0.; // boundary condition
 
@@ -34,7 +34,7 @@ struct Cell {
     double rho_grad[3];
 };
 
-unsigned int transposeToHilbert(const unsigned int X[N_dim], const int L, uint &hindex);
+void transposeToHilbert(const unsigned int X[N_dim], const int L, uint &hindex);
 void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]);
 void getHindex(idx4 idx_cell, uint& hindex);
 void getHindexInv(uint hindex, int L, idx4& idx_cell);
