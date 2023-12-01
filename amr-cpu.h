@@ -22,10 +22,14 @@ const int fd_kernel[4][4] = {
     {-4, -5, 9, 15},
     {-1, 0, 1, 2}
 };
+const int hash_constants[4] = {-1640531527, 97, 1003313, 5};
 
 struct idx4 {
     uint idx3[N_dim];
     uint L;
+    bool operator==(const idx4 &other) const {
+        return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
+    }
 };
 
 struct Cell {

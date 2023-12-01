@@ -13,6 +13,19 @@ using namespace std;
 typedef unsigned int uint;
 
 Cell grid[N_cell_max];
+
+template<>
+struct hash<idx4> {
+    size_t operator()(const idx4& idx_cell) const noexcept {
+        int complete_hash = 0;
+        for (short i = 0; i < N_dim; i++) {
+            complete_hash += idx_cell.idx3[i] * hash_constants[i];
+        }
+        complete_hash += idx_cell.L * hash_constants[3];
+        return complete_hash;
+    }
+};
+
 unordered_map<idx4, Cell> hashtable;
 unordered_map<idx4, Cell>:: iterator hashtable_itr;
 
