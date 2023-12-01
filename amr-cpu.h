@@ -1,5 +1,6 @@
 
 typedef unsigned int uint;
+using namespace std;
 
 const uint L_base = 3;
 const uint L_max = 6;
