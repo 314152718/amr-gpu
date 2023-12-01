@@ -170,13 +170,13 @@ void makeBaseGrid(Cell (&grid)[N_cell_max]) {
     for (int L=0; L <= L_base; L++) {
         for (uint hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
-            setGridCell(idx_cell, hindex);
+            setGridCell(idx_cell, hindex, L == L_base);
         }
     }
 }
 
-void setGridCell(const idx4 idx_cell, const uint hindex) {
-    // if (checkIfExists(idx_cell)) throw runtime_error("setting existing cell");
+void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf) {
+    if (checkIfExists(idx_cell)) throw runtime_error("setting existing cell");
 
     uint offset;
     double dx, coord[3];
@@ -188,7 +188,7 @@ void setGridCell(const idx4 idx_cell, const uint hindex) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
     cell.rho = rhoFunc(coord);
-    cell.flag_leaf = idx_cell.L == L_base; // this is only good for base grid set
+    cell.flag_leaf = flag_leaf; // this is only good for base grid set
     grid[offset + hindex] = cell;
     hashtable[idx_cell] = grid[offset + hindex];
 }
@@ -197,7 +197,10 @@ void refineGridCell(const idx4 idx_cell) {
     uint hindex;
     getHindex(idx_cell, hindex);
 
+    if (!checkIfExists(idx_cell)) throw runtime_error("Trying to refine non-existant cell!");
+
     if (!hashtable[idx_cell].flag_leaf) throw runtime_error("trying to refine non-leaf");
+    if (idx_cell.L == L_max) throw runtime_error("trying to refine at max level");
     hashtable[idx_cell].flag_leaf = false;
 
     idx4 idx_child;
@@ -206,13 +209,12 @@ void refineGridCell(const idx4 idx_cell) {
     for (short dir = 0; dir < N_dim; dir++) {
         for (short pos = 0; pos < 2; pos++) {
             idx_child.idx3[dir] = idx_cell.idx3[dir]*2 + pos;
-            idx4 idx_child_new = idx_child; // how to copy struct?
-            setGridCell(idx_child_new, hindex);
-            hashtable[idx_cell].flag_leaf = true;
+            idx4 idx_child_new = idx_child;
+            setGridCell(idx_child_new, hindex, true);
         }
     }
     // refine neighbors if needed
-    idx4 idx_neighbor;
+    idx4 idx_neighbor, idx_parent;
     uint hindex_neighbor;
     for (short dir = 0; dir < N_dim; dir++) {
         for (short pos = 0; pos < 2; pos++) {
@@ -221,13 +223,13 @@ void refineGridCell(const idx4 idx_cell) {
             if (is_border) continue;
             getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
             // don't need to remove 'if' statements because this is part not for GPU (only gradient is)
+            // don't need to refine if exists
             if (checkIfExists(idx_neighbor)) continue;
 
-            // if not exists, drop L by 1
-            idx_neighbor.L -= 1;
-            for (short i = 0; i < N_dim; i++) {
-                idx_neighbor.idx3[i] /= 2;
-            }
+            // if not exists, drop L by differen
+            // we assume that L is at most different by 1
+            getParentIdx(idx_cell, idx_parent);
+            getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
             refineGridCell(idx_neighbor);
         }
     }
@@ -286,9 +288,20 @@ void calcGrad() {
 }
 
 void writeGrid() {
+    // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
     ofstream outfile;
     outfile.open(outfile_name);
-    outfile << "Writing this to a file.\n";
+    idx4 idx;
+    Cell c;
+    // outfile << "Writing this to a file.\n";
+    outfile << "i,j,k,L,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
+    for (auto it = hashtable.begin(); it != hashtable.end(); ++it) {
+        idx = it->first;
+        c = it->second;
+        outfile << idx.idx3[0] << "," << idx.idx3[1] << "," << idx.idx3[2]
+                << "," << idx.L << "," << c.rho << "," << c.rho_grad[0]
+                << "," << c.rho_grad[1] << "," << c.rho_grad[2] << "\n";
+    }
     outfile.close();
 }
 
@@ -303,6 +316,29 @@ void test1() {
     cout << hindex << endl;
 }
 
+void refineGrid1lvl() {
+    idx4 idx_cell;
+    Cell cell;
+
+    vector<idx4> key_copy;
+    key_copy.reserve(hashtable.size());
+    for(auto kv : hashtable) {
+        key_copy.push_back(kv.first);
+    }
+    for (auto it = key_copy.begin(); it != key_copy.end(); it++) {
+        idx_cell = *it;
+        if (refCrit(hashtable[idx_cell].rho)) {
+            refineGridCell(idx_cell);
+        }
+    }
+}
+
 int main() {
     makeBaseGrid(grid);
+    const uint num_ref = L_max - L_base;
+    for (short i = 0; i < num_ref; i++) {
+        refineGrid1lvl();
+    }
+    calcGrad();
+    writeGrid();
 }

@@ -24,13 +24,22 @@ const int fd_kernel[4][4] = {
     {-1, 0, 1, 2}
 };
 const int hash_constants[4] = {-1640531527, 97, 1003313, 5};
-const string outfile_name = "grid.txt";
+const string outfile_name = "grid.csv";
 
 struct idx4 {
+    idx4() = default;
     uint idx3[N_dim];
     uint L;
     bool operator==(const idx4 &other) const {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
+    }
+    
+    idx4 (const idx4& other)
+    {
+        this->L = other.L;
+        for (int i=0; i<N_dim; i++) {
+            this->idx3[i] = other.idx3[i];
+        }
     }
 };
 
@@ -54,9 +63,11 @@ bool checkIfExists(const idx4 idx_cell);
 void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is_border);
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]);
-void setGridCell(const idx4 idx_cell, const uint hindex);
+void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf);
 void refineGridCell(const idx4 idx_cell);
 
 void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho);
 void calcGradCell(idx4 idx_cell);
 void calcGrad();
+void refineGrid1lvl();
+void writeGrid();
