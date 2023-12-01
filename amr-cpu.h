@@ -34,9 +34,23 @@ struct Cell {
     double rho_grad[3];
 };
 
-unsigned int transposeToHilbert(const unsigned int X[N_dim], const int L);
-void hilbertToTranspose(unsigned int X[N_dim], const unsigned int h, const int L);
-void getHindex(idx4 idx_cell, unsigned int& hindex);
-void getHindexInv(unsigned int hindex, int L, idx4& cell_idx);
-void makeBaseGrid();
+unsigned int transposeToHilbert(const unsigned int X[N_dim], const int L, uint &hindex);
+void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]);
+void getHindex(idx4 idx_cell, uint& hindex);
+void getHindexInv(uint hindex, int L, idx4& idx_cell);
+
 double rhoFunc(const double coord[N_dim], const double sigma = 1.0);
+bool refCrit(double rho);
+
+void getParentIdx(const idx4 idx_cell, idx4 idx_parent);
+void getNeighborIdx(const idx4 idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor);
+bool checkIfExists(const idx4 idx_cell);
+void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is_border);
+
+void makeBaseGrid(Cell (&grid)[N_cell_max]);
+void setGridCell(const idx4 idx_cell, const uint hindex);
+void refineGridCell(const idx4 idx_cell);
+
+void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho);
+void calcGradCell(idx4 idx_cell);
+void calcGrad();

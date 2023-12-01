@@ -16,7 +16,7 @@ Cell grid[N_cell_max];
 unordered_map<idx4, Cell> hashtable;
 unordered_map<idx4, Cell>:: iterator hashtable_itr;
 
-uint transposeToHilbert(const uint X[N_dim], const int L) {
+uint transposeToHilbert(const uint X[N_dim], const int L, uint &hindex) {
     uint hindex = 0, n = 0;
     for (short i = 0; i < N_dim; ++i) {
         for (int b = 0; b < L; ++b) {
@@ -24,7 +24,6 @@ uint transposeToHilbert(const uint X[N_dim], const int L) {
             hindex |= (((X[N_dim-i-1] >> b) & 1) << n);
         }
     }
-    return hindex;
 }
 
 void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]) {
@@ -37,13 +36,8 @@ void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]) {
     }
 }
 
-/* 
-Compute the Hilbert index for a given 4-idx (i, j, k, L)
-
-Args
-idx4: 4-index
-*/
-void getHindex(idx4 idx_cell, uint& hindex) { // Axes to transpose
+// Compute the Hilbert index for a given 4-idx (i, j, k, L)
+void getHindex(idx4 idx_cell, uint& hindex) {
     uint X[3];
     for (short i = 0; i++; i < N_dim) {
         X[i] = idx_cell.idx3[i];
@@ -77,25 +71,13 @@ void getHindex(idx4 idx_cell, uint& hindex) { // Axes to transpose
     for (short i = 0; i < N_dim; i++) {
         X[i] ^= t;
     }
-    // convert transpose to hindex
-    hindex = transposeToHilbert(X, L);
-    // X[0], X[1], X[2] needs to be converted into single number
+    transposeToHilbert(X, L, hindex);
 }
 
-/* 
-Compute the 3-index for a given Hilbert index and AMR level
-
-Args
-X: Hilbert index transpose
-L: AMR level
-N_dim: number of dimensions
-*/
-void getHindexInv(uint hindex, int L, idx4& idx_cell) { // Transpose to axes
-    // TODO: convert hindex to X
+// Compute the 3-index for a given Hilbert index and AMR level
+void getHindexInv(uint hindex, int L, idx4& idx_cell) {
     uint X[N_dim];
-    hilbertToTranspose(X, hindex, L);
-
-    
+    hilbertToTranspose(hindex, L, X);
     uint n = 2 << (L - 1), p, q, t;
     // Gray decode by H ^ (H/2)
     t = X[N_dim - 1] >> 1;
@@ -120,6 +102,57 @@ void getHindexInv(uint hindex, int L, idx4& idx_cell) { // Transpose to axes
         idx_cell.idx3[i] = X[i];
     }
     idx_cell.L = L;
+}
+
+// Multi-variate Gaussian distribution
+double rhoFunc(const double coord[N_dim], const double sigma = 1.0) {
+    double rsq = 0;
+    for (short i = 0; i < N_dim; i++) {
+        rsq += pow(coord[i] - 0.5, 2);
+    }
+    double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
+    return rho;
+}
+
+// Criterion for refinement
+bool refCrit(double rho) {
+    return rho > rho_crit;
+}
+
+// Compute the index of the parent cell
+void getParentIdx(const idx4 idx_cell, idx4 idx_parent) {
+    for (short i = 0; i < N_dim; i++) {
+        idx_parent.idx3[i] = idx_cell.idx3[i] / 2;
+    }
+    idx_parent.L = idx_cell.L - 1;
+}
+
+// Compute the indices of the neighbor cells in a given direction
+void getNeighborIdx(const idx4 idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor) {
+    for (short i = 0; i < N_dim; i++) {
+        idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
+    }
+    idx_neighbor.L = idx_cell.L;
+}
+
+// Check if a cell exists
+bool checkIfExists(const idx4 idx_cell) {
+    return !(hashtable.find(idx_cell) == hashtable.end());
+}
+
+// Check if a cell face in a give direction is a border of the computational domain
+void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is_border) {
+    is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
+}
+
+void makeBaseGrid(Cell (&grid)[N_cell_max]) {
+    idx4 idx_cell;
+    for (int L=0; L <= L_base; L++) {
+        for (uint hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
+            getHindexInv(hindex, L, idx_cell);
+            setGridCell(idx_cell, hindex);
+        }
+    }
 }
 
 void setGridCell(const idx4 idx_cell, const uint hindex) {
@@ -179,61 +212,8 @@ void refineGridCell(const idx4 idx_cell) {
     }
 }
 
-void makeBaseGrid(Cell (&grid)[N_cell_max]) {
-    idx4 idx_cell;
-    for (int L=0; L <= L_base; L++) {
-        for (uint hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
-            getHindexInv(hindex, L, idx_cell);
-            setGridCell(idx_cell, hindex);
-        }
-    }
-}
-
-// Multi-variate Gaussian distribution
-double rhoFunc(const double coord[N_dim], const double sigma = 1.0) {
-    double rsq = 0;
-    for (short i = 0; i < N_dim; i++) {
-        rsq += pow(coord[i] - 0.5, 2);
-    }
-    double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
-    return rho;
-}
-
-// Criterion for refinement
-bool refCrit(double rho) {
-    return rho > rho_crit;
-}
-
-// Compute the index of the parent cell
-void getParentIdx(const idx4 idx_cell, idx4 idx_parent) {
-    for (short i = 0; i < N_dim; i++) {
-        idx_parent.idx3[i] = idx_cell.idx3[i] / 2;
-    }
-    idx_parent.L = idx_cell.L - 1;
-}
-
-// Compute the indices of the neighbor cells in a given direction
-void getNeighborIdx(const idx4 idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor) {
-    for (short i = 0; i < N_dim; i++) {
-        idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
-    }
-    idx_neighbor.L = idx_cell.L;
-}
-
-// Check if a cell exists
-bool checkIfExists(const idx4 idx_cell) {
-    return !(hashtable.find(idx_cell) == hashtable.end());
-}
-
-// Check if a cell face in a give direction is a border of the computational domain
-void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is_border) {
-    is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
-}
-
 // get information about the neighbor cell necessary for computing the gradient
 void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho) {
-    // what do you return if this is the border of everything?
-
     idx4 idx_neighbor;
     uint idx1_parent_neighbor;
     bool is_border, is_notref;
