@@ -167,7 +167,7 @@ void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]) {
     idx4 idx_cell;
-    for (int L=0; L <= L_base; L++) {
+    for (uint L = 0; L <= L_base; L++) {
         for (uint hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
             setGridCell(idx_cell, hindex, L == L_base);
@@ -188,7 +188,7 @@ void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
     cell.rho = rhoFunc(coord);
-    cell.flag_leaf = flag_leaf; // this is only good for base grid set
+    cell.flag_leaf = flag_leaf;
     grid[offset + hindex] = cell;
     hashtable[idx_cell] = grid[offset + hindex];
 }
@@ -261,11 +261,10 @@ void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &
 }
 
 // compute the gradient for one cell
-void calcGradCell(idx4 idx_cell) {
+void calcGradCell(const idx4 idx_cell, Cell &cell) {
     bool is_ref[2];
     double dx, rho[3];
     int fd_case;
-    Cell cell = hashtable[idx_cell];
     dx = pow(0.5, idx_cell.L);
     rho[2] = cell.rho;
     for (short dir = 0; dir < N_dim; dir++) {
@@ -275,32 +274,37 @@ void calcGradCell(idx4 idx_cell) {
         fd_case = is_ref[0] + 2 * is_ref[1];
         cell.rho_grad[dir] = (fd_kernel[fd_case][0] * rho[0] + fd_kernel[fd_case][1] * rho[2] + fd_kernel[fd_case][2] * rho[1]) / (fd_kernel[fd_case][3] * dx);
     }
-    hashtable[idx_cell] = cell;
 }
 
 // compute the gradient
 void calcGrad() {
+    ofstream outfile;
+    outfile.open("debug.txt");
     idx4 idx_cell;
+    Cell cell;
     for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
         idx_cell = hashtable_itr->first;
-        calcGradCell(idx_cell);
+        cell = hashtable_itr->second;
+        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
+                << "," << idx_cell.L << "\n";
+        // calcGradCell(idx_cell, cell);
     }
+    outfile.close();
 }
 
 void writeGrid() {
     // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
     ofstream outfile;
     outfile.open(outfile_name);
-    idx4 idx;
-    Cell c;
-    // outfile << "Writing this to a file.\n";
+    idx4 idx_cell;
+    Cell cell;
     outfile << "i,j,k,L,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
-    for (auto it = hashtable.begin(); it != hashtable.end(); ++it) {
-        idx = it->first;
-        c = it->second;
-        outfile << idx.idx3[0] << "," << idx.idx3[1] << "," << idx.idx3[2]
-                << "," << idx.L << "," << c.rho << "," << c.rho_grad[0]
-                << "," << c.rho_grad[1] << "," << c.rho_grad[2] << "\n";
+    for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
+        idx_cell = hashtable_itr->first;
+        cell = hashtable_itr->second;
+        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
+                << "," << idx_cell.L << "," << cell.rho << "," << cell.rho_grad[0]
+                << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
     }
     outfile.close();
 }
@@ -335,10 +339,10 @@ void refineGrid1lvl() {
 
 int main() {
     makeBaseGrid(grid);
-    const uint num_ref = L_max - L_base;
-    for (short i = 0; i < num_ref; i++) {
-        refineGrid1lvl();
-    }
+    //const uint num_ref = L_max - L_base;
+    //for (short i = 0; i < num_ref; i++) {
+    //    refineGrid1lvl();
+    //}
     calcGrad();
     writeGrid();
 }

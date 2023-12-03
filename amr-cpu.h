@@ -17,11 +17,11 @@ row1: x_0 = -1, x_1 = 0, x_2 = 1.5
 row2: x_0 = -1.5, x_1 = 0, x_2 = 1
 row3: x_0 = -1, x_1 = 0, x_2 = 1
 */
-const int fd_kernel[4][4] = {
-    {-1, 0, 1, 3},
-    {-9, 5, 4, 15},
-    {-4, -5, 9, 15},
-    {-1, 0, 1, 2}
+const double fd_kernel[4][4] = {
+    {-1., 0., 1., 3.},
+    {-9., 5., 4., 15.},
+    {-4., -5., 9., 15.},
+    {-1., 0., 1., 2.}
 };
 const int hash_constants[4] = {-1640531527, 97, 1003313, 5};
 const string outfile_name = "grid.csv";
@@ -37,7 +37,7 @@ struct idx4 {
     idx4 (const idx4& other)
     {
         this->L = other.L;
-        for (int i=0; i<N_dim; i++) {
+        for (short i = 0; i < N_dim; i++) {
             this->idx3[i] = other.idx3[i];
         }
     }
@@ -67,7 +67,7 @@ void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf);
 void refineGridCell(const idx4 idx_cell);
 
 void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho);
-void calcGradCell(idx4 idx_cell);
+void calcGradCell(const idx4 idx_cell, Cell &cell);
 void calcGrad();
 void refineGrid1lvl();
 void writeGrid();
