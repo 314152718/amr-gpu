@@ -11,7 +11,7 @@
 
 using namespace std;
 
-typedef unsigned int uint;
+// typedef unsigned int uint;
 
 Cell grid[N_cell_max];
 
@@ -34,8 +34,8 @@ unordered_map<idx4, Cell> hashtable;
 unordered_map<idx4, Cell>:: iterator hashtable_itr;
 
 // convert from transposed Hilbert index to Hilbert index
-void transposeToHilbert(const uint X[N_dim], const int L, uint &hindex) {
-    uint n = 0;
+void transposeToHilbert(const int X[N_dim], const int L, int &hindex) {
+    int n = 0;
     hindex = 0;
     for (short i = 0; i < N_dim; ++i) {
         for (int b = 0; b < L; ++b) {
@@ -46,8 +46,8 @@ void transposeToHilbert(const uint X[N_dim], const int L, uint &hindex) {
 }
 
 // convert from Hilbert index to transposed Hilbert index
-void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]) {
-    uint h = hindex;
+void hilbertToTranspose(const int hindex, const int L, int (&X)[N_dim]) {
+    int h = hindex;
     for (short i = 0; i < N_dim; ++i) X[i] = 0;
     for (short i = 0; i < N_dim * L; ++i) {
         short a = (N_dim - (i % N_dim) - 1);
@@ -57,13 +57,13 @@ void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]) {
 }
 
 // Compute the Hilbert index for a given 4-idx (i, j, k, L)
-void getHindex(idx4 idx_cell, uint& hindex) {
-    uint X[3];
+void getHindex(idx4 idx_cell, int& hindex) {
+    int X[3];
     for (short i = 0; i < N_dim; i++) {
         X[i] = idx_cell.idx3[i];
     }
     int L = idx_cell.L;
-    uint m = 1 << (L - 1), p, q, t;
+    int m = 1 << (L - 1), p, q, t;
     int i;
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
@@ -95,10 +95,10 @@ void getHindex(idx4 idx_cell, uint& hindex) {
 }
 
 // Compute the 3-index for a given Hilbert index and AMR level
-void getHindexInv(uint hindex, int L, idx4& idx_cell) {
-    uint X[N_dim];
+void getHindexInv(int hindex, int L, idx4& idx_cell) {
+    int X[N_dim];
     hilbertToTranspose(hindex, L, X);
-    uint n = 2 << (L - 1), p, q, t;
+    int n = 2 << (L - 1), p, q, t;
     // Gray decode by H ^ (H/2)
     t = X[N_dim - 1] >> 1;
     for (short i = N_dim - 1; i > 0; i--) {
@@ -148,7 +148,7 @@ void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent) {
 }
 
 // Compute the indices of the neighbor cells in a given direction
-void getNeighborIdx(const idx4 &idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor) {
+void getNeighborIdx(const idx4 &idx_cell, const int dir, const bool pos, idx4 &idx_neighbor) {
     for (short i = 0; i < N_dim; i++) {
         idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
     }
@@ -160,25 +160,25 @@ bool checkIfExists(const idx4& idx_cell) {
     return hashtable.find(idx_cell) != hashtable.end();
 }
 
-// Check if a cell face in a give direction is a border of the computational domain
-void checkIfBorder(const idx4 &idx_cell, const uint dir, const bool pos, bool &is_border) {
+// Check if a cell face in a given direction is a border of the computational domain
+void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border) {
     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
 }
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]) {
     idx4 idx_cell;
-    for (uint L = 0; L <= L_base; L++) {
-        for (uint hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
+    for (int L = 0; L <= L_base; L++) {
+        for (int hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
             setGridCell(idx_cell, hindex, L == L_base);
         }
     }
 }
 
-void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf) {
+void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf) {
     if (checkIfExists(idx_cell)) throw runtime_error("setting existing cell");
 
-    uint offset;
+    int offset;
     double dx, coord[3];
     Cell cell;
 
@@ -197,7 +197,7 @@ void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf) {
 // recursive func to set each of the 2^(N_dim) child cells
 void setChildrenHelper(idx4 idx_cell, short i) {
     if (i == N_dim) {
-        uint hindex;
+        int hindex;
         getHindex(idx_cell, hindex);
         setGridCell(idx_cell, hindex, true);
         return;
@@ -209,7 +209,7 @@ void setChildrenHelper(idx4 idx_cell, short i) {
 }
 
 void refineGridCell(const idx4 idx_cell) {
-    uint hindex;
+    int hindex;
     getHindex(idx_cell, hindex);
 
     if (!checkIfExists(idx_cell)) throw runtime_error("Trying to refine non-existant cell!");
@@ -227,7 +227,7 @@ void refineGridCell(const idx4 idx_cell) {
 
     // refine neighbors if needed
     idx4 idx_neighbor, idx_parent;
-    uint hindex_neighbor;
+    int hindex_neighbor;
     for (short dir = 0; dir < N_dim; dir++) {
         for (short pos = 0; pos < 2; pos++) {
             bool is_border;
@@ -248,16 +248,16 @@ void refineGridCell(const idx4 idx_cell) {
 }
 
 // get information about the neighbor cell necessary for computing the gradient
-void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho) {
+void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor) {
     idx4 idx_neighbor;
-    uint idx1_parent_neighbor;
+    int idx1_parent_neighbor;
     bool is_border, is_notref;
     // check if the cell is a border cell
     checkIfBorder(idx_cell, dir, pos, is_border);
     // compute the index of the neighbor on the same level
     getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
-    is_notref = checkIfExists(idx_neighbor) && !is_border;
+    is_notref = !checkIfExists(idx_neighbor) && !is_border;
     is_ref = !is_notref && !is_border;
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
     // if the neighbor is not refined, set the neighbor index to the index of the parent cell's neighbor
@@ -269,7 +269,7 @@ void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &
     // subtract one from the AMR level if the neighbor is not refined
     idx_neighbor.L = idx_cell.L - int(is_notref);
     // if the cell is a border cell, use the boundary condition
-    rho = hashtable[idx_neighbor].rho * int(!is_border) + rho_boundary * int(is_border);
+    rho_neighbor = hashtable[idx_neighbor].rho * int(!is_border) + rho_boundary * int(is_border);
 }
 
 // compute the gradient for one cell
@@ -290,18 +290,14 @@ void calcGradCell(const idx4 idx_cell, Cell &cell) {
 
 // compute the gradient
 void calcGrad() {
-    ofstream outfile;
-    outfile.open("debug.txt");
     idx4 idx_cell;
     Cell cell;
     for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
         idx_cell = hashtable_itr->first;
         cell = hashtable_itr->second;
-        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
-                << "," << idx_cell.L << "\n";
-        // calcGradCell(idx_cell, cell);
+        calcGradCell(idx_cell, cell);
+        hashtable[idx_cell] = cell;
     }
-    outfile.close();
 }
 
 void writeGrid() {
@@ -310,24 +306,24 @@ void writeGrid() {
     outfile.open(outfile_name);
     idx4 idx_cell;
     Cell cell;
-    outfile << "i,j,k,L,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
+    outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
     for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
         idx_cell = hashtable_itr->first;
         cell = hashtable_itr->second;
         outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
-                << "," << idx_cell.L << "," << cell.rho << "," << cell.rho_grad[0]
+                << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
                 << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
     }
     outfile.close();
 }
 
-void test1() {
+void testHilbert() {
     idx4 idx_cell, idx_cell2;
     cin >> idx_cell.idx3[0];
     cin >> idx_cell.idx3[1];
     cin >> idx_cell.idx3[2];
     idx_cell.L = 2;
-    uint hindex;
+    int hindex;
     getHindex(idx_cell, hindex);
     cout << hindex << endl;
     // test inverse
@@ -355,7 +351,7 @@ void refineGrid1lvl() {
 
 int main() {
     makeBaseGrid(grid);
-    const uint num_ref = L_max - L_base;
+    const int num_ref = L_max - L_base;
     for (short i = 0; i < num_ref; i++) {
        refineGrid1lvl();
     }

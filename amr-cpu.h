@@ -1,14 +1,14 @@
 #include <iostream>
 #include <string>
 
-typedef unsigned int uint;
+// typedef unsigned int uint;
 using namespace std;
 
-const uint L_base = 3;
-const uint L_max = 6;
-const uint N_dim = 3;
-const uint N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
-const double rho_crit = 0.01;
+const int L_base = 3;
+const int L_max = 6;
+const int N_dim = 3;
+const int N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
+const double rho_crit = 0.05;
 const double rho_boundary = 0.; // boundary condition
 
 /*
@@ -30,8 +30,8 @@ const string outfile_name = "grid.csv";
 
 struct idx4 {
     idx4() = default;
-    uint idx3[N_dim];
-    uint L;
+    int idx3[N_dim];
+    int L;
     bool operator==(const idx4 &other) const {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
@@ -43,6 +43,7 @@ struct idx4 {
         }
     }
 };
+
 ostream& operator<<(ostream &os, const idx4 &idx) {
     os << "[" << idx.idx3[0] << ", " << idx.idx3[1] << ", " << idx.idx3[2] << "](L=" << idx.L << ")";
     return os;
@@ -54,25 +55,25 @@ struct Cell {
     double rho_grad[3];
 };
 
-void transposeToHilbert(const unsigned int X[N_dim], const int L, uint &hindex);
-void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]);
-void getHindex(idx4 idx_cell, uint &hindex);
-void getHindexInv(uint hindex, int L, idx4 &idx_cell);
+void transposeToHilbert(const unsigned int X[N_dim], const int L, int &hindex);
+void hilbertToTranspose(const int hindex, const int L, int (&X)[N_dim]);
+void getHindex(idx4 idx_cell, int &hindex);
+void getHindexInv(int hindex, int L, idx4 &idx_cell);
 
 double rhoFunc(const double coord[N_dim], const double sigma = 1.0);
 bool refCrit(double rho);
 
 void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
-void getNeighborIdx(const idx4 &idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor);
+void getNeighborIdx(const idx4 &idx_cell, const int dir, const bool pos, idx4 &idx_neighbor);
 bool checkIfExists(const idx4 &idx_cell);
-void checkIfBorder(const idx4 &idx_cell, const uint dir, const bool pos, bool &is_border);
+void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]);
-void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf);
+void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf);
 void setChildrenHelper(idx4 idx_cell, short i);
 void refineGridCell(const idx4 idx_cell);
 
-void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho);
+void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor);
 void calcGradCell(const idx4 idx_cell, Cell &cell);
 void calcGrad();
 void refineGrid1lvl();
