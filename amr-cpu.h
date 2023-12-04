@@ -1,3 +1,5 @@
+#include <iostream>
+#include <string>
 
 typedef unsigned int uint;
 using namespace std;
@@ -5,8 +7,8 @@ using namespace std;
 const uint L_base = 3;
 const uint L_max = 6;
 const uint N_dim = 3;
-const uint N_cell_max = 10000;
-const double rho_crit = 0.1;
+const uint N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
+const double rho_crit = 0.01;
 const double rho_boundary = 0.; // boundary condition
 
 /*
@@ -67,6 +69,7 @@ void checkIfBorder(const idx4 &idx_cell, const uint dir, const bool pos, bool &i
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]);
 void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf);
+void setChildrenHelper(idx4 idx_cell, short i);
 void refineGridCell(const idx4 idx_cell);
 
 void getNeighborInfo(const idx4 idx_cell, const uint dir, const bool pos, bool &is_ref, double &rho);

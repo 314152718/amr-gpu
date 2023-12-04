@@ -189,8 +189,23 @@ void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf) {
     }
     cell.rho = rhoFunc(coord);
     cell.flag_leaf = flag_leaf;
+    if (offset + hindex >= N_cell_max) throw runtime_error("offset () + hindex >= N_cell_max");
     grid[offset + hindex] = cell;
     hashtable[idx_cell] = grid[offset + hindex];
+}
+
+// recursive func to set each of the 2^(N_dim) child cells
+void setChildrenHelper(idx4 idx_cell, short i) {
+    if (i == N_dim) {
+        uint hindex;
+        getHindex(idx_cell, hindex);
+        setGridCell(idx_cell, hindex, true);
+        return;
+    }
+
+    setChildrenHelper(idx_cell, i+1);
+    idx_cell.idx3[i]++;
+    setChildrenHelper(idx_cell, i+1);
 }
 
 void refineGridCell(const idx4 idx_cell) {
@@ -203,16 +218,13 @@ void refineGridCell(const idx4 idx_cell) {
     if (idx_cell.L == L_max) throw runtime_error("trying to refine at max level");
     hashtable[idx_cell].flag_leaf = false;
 
-    idx4 idx_child;
-    idx_child.L = idx_cell.L + 1;
+    idx4 idx_child = idx_cell;
+    idx_child.L++;
+    for (short dir = 0; dir < N_dim; dir++) idx_child.idx3[dir] *= 2;
 
-    for (short dir = 0; dir < N_dim; dir++) {
-        for (short pos = 0; pos < 2; pos++) {
-            idx_child.idx3[dir] = idx_cell.idx3[dir]*2 + pos;
-            idx4 idx_child_new = idx_child;
-            setGridCell(idx_child_new, hindex, true);
-        }
-    }
+    // todo: fix bug where it doesn't actually go thru all the permutations
+    setChildrenHelper(idx_child, 0);
+
     // refine neighbors if needed
     idx4 idx_neighbor, idx_parent;
     uint hindex_neighbor;
@@ -334,7 +346,8 @@ void refineGrid1lvl() {
     }
     for (auto it = key_copy.begin(); it != key_copy.end(); it++) {
         idx_cell = *it;
-        if (refCrit(hashtable[idx_cell].rho)) {
+        cell = hashtable[idx_cell];
+        if (refCrit(cell.rho) && cell.flag_leaf) {
             refineGridCell(idx_cell);
         }
     }
@@ -342,10 +355,10 @@ void refineGrid1lvl() {
 
 int main() {
     makeBaseGrid(grid);
-    //const uint num_ref = L_max - L_base;
-    //for (short i = 0; i < num_ref; i++) {
-    //    refineGrid1lvl();
-    //}
+    const uint num_ref = L_max - L_base;
+    for (short i = 0; i < num_ref; i++) {
+       refineGrid1lvl();
+    }
     calcGrad();
     writeGrid();
 }
