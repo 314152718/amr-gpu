@@ -140,7 +140,7 @@ bool refCrit(double rho) {
 }
 
 // Compute the index of the parent cell
-void getParentIdx(const idx4 idx_cell, idx4 idx_parent) {
+void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent) {
     for (short i = 0; i < N_dim; i++) {
         idx_parent.idx3[i] = idx_cell.idx3[i] / 2;
     }
@@ -148,7 +148,7 @@ void getParentIdx(const idx4 idx_cell, idx4 idx_parent) {
 }
 
 // Compute the indices of the neighbor cells in a given direction
-void getNeighborIdx(const idx4 idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor) {
+void getNeighborIdx(const idx4 &idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor) {
     for (short i = 0; i < N_dim; i++) {
         idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
     }
@@ -156,12 +156,12 @@ void getNeighborIdx(const idx4 idx_cell, const uint dir, const bool pos, idx4 &i
 }
 
 // Check if a cell exists
-bool checkIfExists(const idx4 idx_cell) {
-    return !(hashtable.find(idx_cell) == hashtable.end());
+bool checkIfExists(const idx4& idx_cell) {
+    return hashtable.find(idx_cell) != hashtable.end();
 }
 
 // Check if a cell face in a give direction is a border of the computational domain
-void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is_border) {
+void checkIfBorder(const idx4 &idx_cell, const uint dir, const bool pos, bool &is_border) {
     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
 }
 
@@ -310,7 +310,7 @@ void writeGrid() {
 }
 
 void test1() {
-    idx4 idx_cell;
+    idx4 idx_cell, idx_cell2;
     cin >> idx_cell.idx3[0];
     cin >> idx_cell.idx3[1];
     cin >> idx_cell.idx3[2];
@@ -318,6 +318,9 @@ void test1() {
     uint hindex;
     getHindex(idx_cell, hindex);
     cout << hindex << endl;
+    // test inverse
+    getHindexInv(hindex, 2, idx_cell2);
+    cout << "Inverse of hindex=" << hindex << " is " << idx_cell2 << endl;
 }
 
 void refineGrid1lvl() {

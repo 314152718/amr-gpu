@@ -33,8 +33,7 @@ struct idx4 {
     bool operator==(const idx4 &other) const {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
-    
-    idx4 (const idx4& other)
+    idx4 (const idx4 &other)
     {
         this->L = other.L;
         for (short i = 0; i < N_dim; i++) {
@@ -42,6 +41,10 @@ struct idx4 {
         }
     }
 };
+ostream& operator<<(ostream &os, const idx4 &idx) {
+    os << "[" << idx.idx3[0] << ", " << idx.idx3[1] << ", " << idx.idx3[2] << "](L=" << idx.L << ")";
+    return os;
+}
 
 struct Cell {
     double rho;
@@ -51,16 +54,16 @@ struct Cell {
 
 void transposeToHilbert(const unsigned int X[N_dim], const int L, uint &hindex);
 void hilbertToTranspose(const uint hindex, const int L, uint (&X)[N_dim]);
-void getHindex(idx4 idx_cell, uint& hindex);
-void getHindexInv(uint hindex, int L, idx4& idx_cell);
+void getHindex(idx4 idx_cell, uint &hindex);
+void getHindexInv(uint hindex, int L, idx4 &idx_cell);
 
 double rhoFunc(const double coord[N_dim], const double sigma = 1.0);
 bool refCrit(double rho);
 
-void getParentIdx(const idx4 idx_cell, idx4 idx_parent);
-void getNeighborIdx(const idx4 idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor);
-bool checkIfExists(const idx4 idx_cell);
-void checkIfBorder(const idx4 idx_cell, const uint dir, const bool pos, bool &is_border);
+void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
+void getNeighborIdx(const idx4 &idx_cell, const uint dir, const bool pos, idx4 &idx_neighbor);
+bool checkIfExists(const idx4 &idx_cell);
+void checkIfBorder(const idx4 &idx_cell, const uint dir, const bool pos, bool &is_border);
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]);
 void setGridCell(const idx4 idx_cell, const uint hindex, bool flag_leaf);
