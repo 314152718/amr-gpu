@@ -17,17 +17,20 @@ Cell grid[N_cell_max];
 
 // define a hash function for the idx4 struct
 // based on the hash function from mini-ramses
-template<>
-struct hash<idx4> {
-    size_t operator()(const idx4& idx_cell) const noexcept {
-        int complete_hash = 0;
-        for (short i = 0; i < N_dim; i++) {
-            complete_hash += idx_cell.idx3[i] * hash_constants[i];
+namespace std
+{
+    template<>
+    struct hash<idx4> {
+        size_t operator()(const idx4& idx_cell) const noexcept {
+            int complete_hash = 0;
+            for (short i = 0; i < N_dim; i++) {
+                complete_hash += idx_cell.idx3[i] * hash_constants[i];
+            }
+            complete_hash += idx_cell.L * hash_constants[3];
+            return complete_hash;
         }
-        complete_hash += idx_cell.L * hash_constants[3];
-        return complete_hash;
-    }
-};
+    };
+}
 
 // create the hashtable
 unordered_map<idx4, Cell> hashtable;
