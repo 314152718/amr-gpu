@@ -2,3 +2,5 @@
 **/*.out
 notes.sh
 **/*.dSYM
+./a.exe
+**/*.csv
