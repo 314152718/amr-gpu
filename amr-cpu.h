@@ -1,8 +1,10 @@
 #include <iostream>
 #include <string>
+#include <chrono>
 
 // typedef unsigned int uint;
 using namespace std;
+using namespace std::chrono;
 
 const int L_base = 3;
 const int L_max = 6;

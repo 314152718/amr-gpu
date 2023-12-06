@@ -7,9 +7,11 @@
 #include <cmath>
 #include <unordered_map>
 #include <stdexcept>
+#include <chrono>
 #include "amr-cpu.h"
 
 using namespace std;
+using namespace std::chrono;
 
 // typedef unsigned int uint;
 
@@ -358,6 +360,10 @@ int main() {
     for (short i = 0; i < num_ref; i++) {
        refineGrid1lvl();
     }
+    auto start = high_resolution_clock::now();
     calcGrad();
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(stop - start);
+    cout << duration.count() << " ms" << endl;
     writeGrid();
 }
