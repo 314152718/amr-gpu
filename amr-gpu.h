@@ -3,6 +3,8 @@
 #include <string>
 #include <chrono>
 
+#include "cuco/static_map.cuh"
+
 // typedef unsigned int uint;
 using namespace std;
 using namespace std::chrono;
@@ -10,7 +12,7 @@ using namespace std::chrono;
 const int L_base = 3;
 const int L_max = 6;
 const int N_dim = 3;
-const int N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
+const size_t N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
 const double rho_crit = 0.05;
 const double rho_boundary = 0.; // boundary condition
 
@@ -33,7 +35,6 @@ const string outfile_name = "grid.csv";
 
 #pragma pack(push, 1)
 struct idx4 {
-    idx4() = default;
     int32_t idx3[N_dim];
     int32_t L;
     bool operator==(const idx4 &other) const {
@@ -77,16 +78,16 @@ bool refCrit(double rho);
 
 void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
 void getNeighborIdx(const idx4 &idx_cell, const int dir, const bool pos, idx4 &idx_neighbor);
-bool checkIfExists(const idx4 &idx_cell);
+bool checkIfExists(const idx4 &idx_cell, cuco::static_map<idx4, Cell> &hashtable);
 void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
 
-void makeBaseGrid(Cell (&grid)[N_cell_max]);
-void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf);
+void makeBaseGrid(Cell (&grid)[N_cell_max], cuco::static_map<idx4, Cell> &hashtable);
+void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf, cuco::static_map<idx4, Cell> &hashtable);
 void setChildrenHelper(idx4 idx_cell, short i);
-void refineGridCell(const idx4 idx_cell);
+void refineGridCell(const idx4 idx_cell, cuco::static_map<idx4, Cell> &hashtable);
 
-void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor);
-void calcGradCell(const idx4 idx_cell, Cell &cell);
-void calcGrad();
+void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, cuco::static_map<idx4, Cell> &hashtable);
+void calcGradCell(const idx4 idx_cell, Cell &cell, cuco::static_map<idx4, Cell> &hashtable);
+void calcGrad(cuco::static_map<idx4, Cell> &hashtable);
 void refineGrid1lvl();
 void writeGrid();

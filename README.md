@@ -4,7 +4,7 @@ Storing some useful notes/commands here
 
 ### Compiling:
 ```
-nvcc --std=c++17 -arch=sm_60 -I. --expt-relaxed-constexpr --expt-extended-lambda cuco_test.cu -o run
+nvcc --std=c++17 -arch=sm_70 -I. --expt-relaxed-constexpr --expt-extended-lambda cuco_test.cu -o run
 ```
 - Have to compile for at least architecture `sm_60` (CUCO doesn't work for architectures below that, and the default is `sm_52`)
 - need to specify c++17 as well
