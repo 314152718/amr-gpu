@@ -7,9 +7,11 @@
 #include <cmath>
 #include <unordered_map>
 #include <stdexcept>
+#include <chrono>
 #include "amr-cpu.h"
 
 using namespace std;
+using namespace std::chrono;
 
 // typedef unsigned int uint;
 
@@ -190,7 +192,7 @@ void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf) {
     for (short i = 0; i < N_dim; i++) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
-    cell.rho = rhoFunc(coord);
+    cell.rho = rhoFunc(coord, 0.01);
     cell.flag_leaf = flag_leaf;
     if (offset + hindex >= N_cell_max) throw runtime_error("offset () + hindex >= N_cell_max");
     grid[offset + hindex] = cell;
@@ -358,6 +360,10 @@ int main() {
     for (short i = 0; i < num_ref; i++) {
        refineGrid1lvl();
     }
+    auto start = high_resolution_clock::now();
     calcGrad();
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(stop - start);
+    cout << duration.count() << " ms" << endl;
     writeGrid();
 }
