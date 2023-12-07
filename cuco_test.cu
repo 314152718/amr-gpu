@@ -136,6 +136,7 @@ int main(void)
     capacity, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
 
   // Get a non-owning, mutable view of the map that allows inserts to pass by value into the kernel
+  // put map onto device
   auto device_insert_view = map.get_device_mutable_view();
 
   auto constexpr block_size = 256;
