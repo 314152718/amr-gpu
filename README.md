@@ -2,9 +2,18 @@
 
 Storing some useful notes/commands here
 
+### Modules:
+```
+module load cudatoolkit/12.2
+```
+
 ### Compiling:
 ```
-nvcc --std=c++17 -arch=sm_70 -I. --expt-relaxed-constexpr --expt-extended-lambda cuco_test.cu -o run
+CPU
+g++ --std=c++17 -I. amr-cpu.cpp -o runcpu
+
+GPU
+nvcc --std=c++17 -arch=sm_70 -I. --expt-relaxed-constexpr --expt-extended-lambda cuco_test.cu -o rungpu
 ```
 - Have to compile for at least architecture `sm_60` (CUCO doesn't work for architectures below that, and the default is `sm_52`)
 - need to specify c++17 as well

@@ -7,11 +7,11 @@
 using namespace std;
 using namespace std::chrono;
 
-const int L_base = 3;
+const int L_base = 2;
 const int L_max = 6;
 const int N_dim = 3;
 const int N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
-const double rho_crit = 0.05;
+const double rho_crit = 0.01;
 const double rho_boundary = 0.; // boundary condition
 
 /*
@@ -30,42 +30,32 @@ const double fd_kernel[4][4] = {
 };
 const int hash_constants[4] = {-1640531527, 97, 1003313, 5};
 const string outfile_name = "grid.csv";
-
-#pragma pack(push, 1)
 struct idx4 {
     idx4() = default;
-    int32_t idx3[N_dim];
-    int32_t L;
+    int idx3[N_dim];
+    int L;
     bool operator==(const idx4 &other) const {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
-    // TODO fix copy constructor padding issue
-//     idx4 (const idx4 &other)
-//     {
-//         this->L = other.L;
-//         for (short i = 0; i < N_dim; i++) {
-//             this->idx3[i] = other.idx3[i];
-//         }
-//     }
+    idx4 (const idx4 &other)
+    {
+        this->L = other.L;
+        for (short i = 0; i < N_dim; i++) {
+            this->idx3[i] = other.idx3[i];
+        }
+    }
 };
-#pragma pack(pop)
 
 ostream& operator<<(ostream &os, const idx4 &idx) {
     os << "[" << idx.idx3[0] << ", " << idx.idx3[1] << ", " << idx.idx3[2] << "](L=" << idx.L << ")";
     return os;
 }
 
-#pragma pack(push, 1)
 struct Cell {
     double rho;
-    uint8_t flag_leaf;
+    bool flag_leaf;
     double rho_grad[3];
 };
-#pragma pack(pop)
-
-// hoping
-template<>
-struct cuco::is_bitwise_comparable<Cell> : true_type {};
 
 void transposeToHilbert(const unsigned int X[N_dim], const int L, int &hindex);
 void hilbertToTranspose(const int hindex, const int L, int (&X)[N_dim]);
