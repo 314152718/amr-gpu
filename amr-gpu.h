@@ -1,20 +1,24 @@
+// cpu includes
 #include <cstdint>
 #include <iostream>
 #include <string>
 #include <chrono>
 
+// gpu includes
 #include "cuco/static_map.cuh"
 
-// typedef unsigned int uint;
+// namespaces
 using namespace std;
 using namespace std::chrono;
 
-const int L_base = 3;
-const int L_max = 6;
-const int N_dim = 3;
-const size_t N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
-const double rho_crit = 0.05;
+// constants
+const int L_base = 3; // base AMR level
+const int L_max = 6; // max AMR level
+const int N_dim = 3; // number of dimensions
+const int N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
+const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
+const double sigma = 0.001; // std of Gaussian density field
 
 /*
 Finite difference kernel

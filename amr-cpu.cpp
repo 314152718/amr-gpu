@@ -1,5 +1,7 @@
+// defines
 #define _USE_MATH_DEFINES
 
+// includes
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -10,10 +12,9 @@
 #include <chrono>
 #include "amr-cpu.h"
 
+// namespaces
 using namespace std;
 using namespace std::chrono;
-
-// typedef unsigned int uint;
 
 Cell grid[N_cell_max];
 
@@ -192,7 +193,7 @@ void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf) {
     for (short i = 0; i < N_dim; i++) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
-    cell.rho = rhoFunc(coord, 0.01);
+    cell.rho = rhoFunc(coord, sigma);
     cell.flag_leaf = flag_leaf;
     if (offset + hindex >= N_cell_max) throw runtime_error("offset () + hindex >= N_cell_max");
     grid[offset + hindex] = cell;

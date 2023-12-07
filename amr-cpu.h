@@ -7,12 +7,13 @@
 using namespace std;
 using namespace std::chrono;
 
-const int L_base = 2;
+const int L_base = 3;
 const int L_max = 6;
 const int N_dim = 3;
 const int N_cell_max = 2097152 + 10; // (2 ^ (6+1))^3 is how many cells we'd have if all were at level 6. adding 10 to be safe
 const double rho_crit = 0.01;
 const double rho_boundary = 0.; // boundary condition
+const double sigma = 0.001; // std of Gaussian density field
 
 /*
 Finite difference kernel
