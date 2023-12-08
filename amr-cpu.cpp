@@ -277,30 +277,30 @@ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &i
 }
 
 // compute the gradient for one cell
-void calcGradCell(const idx4 idx_cell, Cell &cell) {
+void calcGradCell(const idx4 idx_cell, Cell* cell) {
     bool is_ref[2];
     double dx, rho[3];
     int fd_case;
     dx = pow(0.5, idx_cell.L);
-    rho[2] = cell.rho;
+    rho[2] = cell->rho;
     for (short dir = 0; dir < N_dim; dir++) {
         for (short pos = 0; pos < 2; pos++) {
             getNeighborInfo(idx_cell, dir, pos, is_ref[pos], rho[pos]);
         }
         fd_case = is_ref[0] + 2 * is_ref[1];
-        cell.rho_grad[dir] = (fd_kernel[fd_case][0] * rho[0] + fd_kernel[fd_case][1] * rho[2] + fd_kernel[fd_case][2] * rho[1]) / (fd_kernel[fd_case][3] * dx);
+        cell->rho_grad[dir] = (fd_kernel[fd_case][0] * rho[0] + fd_kernel[fd_case][1] * rho[2] + fd_kernel[fd_case][2] * rho[1]) / (fd_kernel[fd_case][3] * dx);
     }
 }
 
 // compute the gradient
 void calcGrad() {
     idx4 idx_cell;
-    Cell cell;
+    Cell* pCell;
     for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
         idx_cell = hashtable_itr->first;
-        cell = *(hashtable_itr->second);
-        calcGradCell(idx_cell, cell);
-        hashtable[idx_cell] = &cell;
+        pCell = hashtable_itr->second;
+        calcGradCell(idx_cell, pCell);
+        // hashtable[idx_cell] = &cell
     }
 }
 
@@ -309,14 +309,14 @@ void writeGrid() {
     ofstream outfile;
     outfile.open(outfile_name);
     idx4 idx_cell;
-    Cell cell;
+    Cell* pCell;
     outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
     for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
         idx_cell = hashtable_itr->first;
-        cell = *(hashtable_itr->second);
+        pCell = hashtable_itr->second;
         outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
-                << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
-                << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
+                << "," << idx_cell.L << "," << pCell->flag_leaf << "," << pCell->rho << "," << pCell->rho_grad[0]
+                << "," << pCell->rho_grad[1] << "," << pCell->rho_grad[2] << "\n";
     }
     outfile.close();
 }
@@ -337,7 +337,7 @@ void testHilbert() {
 
 void refineGrid1lvl() {
     idx4 idx_cell;
-    Cell cell;
+    Cell* pCell;
 
     vector<idx4> key_copy;
     key_copy.reserve(hashtable.size());
@@ -346,8 +346,8 @@ void refineGrid1lvl() {
     }
     for (auto it = key_copy.begin(); it != key_copy.end(); it++) {
         idx_cell = *it;
-        cell = *(hashtable[idx_cell]);
-        if (refCrit(cell.rho) && cell.flag_leaf) {
+        pCell = hashtable[idx_cell];
+        if (refCrit(pCell->rho) && pCell->flag_leaf) {
             refineGridCell(idx_cell);
         }
     }
