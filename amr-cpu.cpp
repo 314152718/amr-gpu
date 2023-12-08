@@ -36,8 +36,8 @@ namespace std
 }
 
 // create the hashtable
-unordered_map<idx4, Cell> hashtable;
-unordered_map<idx4, Cell>:: iterator hashtable_itr;
+unordered_map<idx4, Cell*> hashtable;
+unordered_map<idx4, Cell*>::iterator hashtable_itr;
 
 // convert from transposed Hilbert index to Hilbert index
 void transposeToHilbert(const int X[N_dim], const int L, int &hindex) {
@@ -186,18 +186,16 @@ void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf) {
 
     int offset;
     double dx, coord[3];
-    Cell cell;
-
     offset = (pow(2, N_dim * idx_cell.L) - 1) / (pow(2, N_dim) - 1);
+
     dx = 1 / pow(2, idx_cell.L);
     for (short i = 0; i < N_dim; i++) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
-    cell.rho = rhoFunc(coord, sigma);
-    cell.flag_leaf = flag_leaf;
+    grid[offset + hindex].rho = rhoFunc(coord, sigma);
+    grid[offset + hindex].flag_leaf = flag_leaf;
     if (offset + hindex >= N_cell_max) throw runtime_error("offset () + hindex >= N_cell_max");
-    grid[offset + hindex] = cell;
-    hashtable[idx_cell] = grid[offset + hindex];
+    hashtable[idx_cell] = &grid[offset + hindex];
 }
 
 // recursive func to set each of the 2^(N_dim) child cells
@@ -220,9 +218,9 @@ void refineGridCell(const idx4 idx_cell) {
 
     if (!checkIfExists(idx_cell)) throw runtime_error("Trying to refine non-existant cell!");
 
-    if (!hashtable[idx_cell].flag_leaf) throw runtime_error("trying to refine non-leaf");
+    if (!hashtable[idx_cell]->flag_leaf) throw runtime_error("trying to refine non-leaf");
     if (idx_cell.L == L_max) throw runtime_error("trying to refine at max level");
-    hashtable[idx_cell].flag_leaf = false;
+    hashtable[idx_cell]->flag_leaf = false;
 
     idx4 idx_child = idx_cell;
     idx_child.L++;
@@ -275,7 +273,7 @@ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &i
     // subtract one from the AMR level if the neighbor is not refined
     idx_neighbor.L = idx_cell.L - int(is_notref);
     // if the cell is a border cell, use the boundary condition
-    rho_neighbor = hashtable[idx_neighbor].rho * int(!is_border) + rho_boundary * int(is_border);
+    rho_neighbor = hashtable[idx_neighbor]->rho * int(!is_border) + rho_boundary * int(is_border);
 }
 
 // compute the gradient for one cell
@@ -300,9 +298,9 @@ void calcGrad() {
     Cell cell;
     for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
         idx_cell = hashtable_itr->first;
-        cell = hashtable_itr->second;
+        cell = *(hashtable_itr->second);
         calcGradCell(idx_cell, cell);
-        hashtable[idx_cell] = cell;
+        hashtable[idx_cell] = &cell;
     }
 }
 
@@ -315,7 +313,7 @@ void writeGrid() {
     outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
     for (hashtable_itr = hashtable.begin(); hashtable_itr != hashtable.end(); hashtable_itr++) {
         idx_cell = hashtable_itr->first;
-        cell = hashtable_itr->second;
+        cell = *(hashtable_itr->second);
         outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
                 << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
                 << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
@@ -348,7 +346,7 @@ void refineGrid1lvl() {
     }
     for (auto it = key_copy.begin(); it != key_copy.end(); it++) {
         idx_cell = *it;
-        cell = hashtable[idx_cell];
+        cell = *(hashtable[idx_cell]);
         if (refCrit(cell.rho) && cell.flag_leaf) {
             refineGridCell(idx_cell);
         }
