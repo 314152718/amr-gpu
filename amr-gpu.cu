@@ -1,15 +1,7 @@
+// defines
 #define _USE_MATH_DEFINES
 
-#include "cuco/static_map.cuh"
-
-#include <thrust/device_vector.h>
-#include <thrust/logical.h>
-#include <thrust/transform.h>
-
-#include <cub/block/block_reduce.cuh>
-
-#include <cuda/std/atomic>
-
+// cpu includes
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -20,10 +12,17 @@
 #include <chrono>
 #include "amr-gpu.h"
 
+// gpu includes
+#include "cuco/static_map.cuh"
+#include <thrust/device_vector.h>
+#include <thrust/logical.h>
+#include <thrust/transform.h>
+#include <cub/block/block_reduce.cuh>
+#include <cuda/std/atomic>
+
+// namespaces
 using namespace std;
 using namespace std::chrono;
-
-// typedef unsigned int uint;
 
 Cell grid[N_cell_max];
 
