@@ -217,9 +217,8 @@ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is
     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
 }
 
-void find(const idx4& idx_cell, map_type & hashtable) {
+void find(const idx4& idx_cell, map_type & hashtable, thrust::device_vector<Cell*> & value) {
     thrust::device_vector<idx4> key(1);
-    thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
     hashtable.find(key.begin(), key.end(), value.begin(), ramses_hash{}, idx4_equals{});
 }
@@ -227,7 +226,7 @@ void find(const idx4& idx_cell, map_type & hashtable) {
 // Check if a cell exists
 bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     thrust::device_vector<Cell*> value(1);
-    find(idx_cell, hashtable);
+    find(idx_cell, hashtable, value);
     return value[0] != empty_pcell_sentinel;
 }
 
@@ -325,6 +324,15 @@ int main() {
     map_type hashtable{
         NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
     };
+    
+    
+    thrust::device_vector<cuco::pair<idx4, Cell*>> test_pair(1);
+    idx4 idx_cell{1, 1, 1, 1};
+    Cell test_cell{1., 0., 0., 0., 1};
+
+    test_pair.push_back(cuco::pair<idx4, Cell*>(idx_cell, &test_cell));
+
+    hashtable.insert(test_pair.begin(), test_pair.end(), ramses_hash{}, idx4_equals{});
 
     // makeBaseGrid();
 
