@@ -31,6 +31,7 @@ const int32_t NMAX = 2097152 + 10; // maximum number of cells
 const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
 const double rho_crit = 0.01; // critical density for refinement
 const double sigma = 0.001; // std of Gaussian density field
+const double EPS = 0.000001;
 
 
 // custom key type
@@ -46,6 +47,10 @@ struct idx4 {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
 };
+ostream& operator<<(ostream &os, const idx4 &idx) {
+    os << "[" << idx.idx3[0] << ", " << idx.idx3[1] << ", " << idx.idx3[2] << "](L=" << idx.L << ")";
+    return os;
+}
 
 // custom device key equal callable
 struct idx4_equals {
@@ -57,11 +62,18 @@ struct idx4_equals {
 
 // custom value type
 struct Cell {
-    double rho, rho_grad_x, rho_grad_y, rho_grad_z;
+    int32_t rho, rho_grad_x, rho_grad_y, rho_grad_z;
     int8_t flag_leaf;
 
     __host__ __device__ Cell() {}
-    __host__ __device__ Cell(double rho_init, double rho_grad_x_init, double rho_grad_y_init, double rho_grad_z_init, int8_t flag_leaf_init) : rho{rho_init}, rho_grad_x{rho_grad_x_init}, rho_grad_y{rho_grad_y_init}, rho_grad_z{rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
+    __host__ __device__ Cell(int32_t rho_init, int32_t rho_grad_x_init, int32_t rho_grad_y_init, int32_t rho_grad_z_init, 
+        int8_t flag_leaf_init) : rho{rho_init}, rho_grad_x{rho_grad_x_init}, rho_grad_y{rho_grad_y_init}, 
+        rho_grad_z{rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
+
+    __host__ __device__ bool operator==(Cell const& other) const {
+        return abs(rho - other.rho) < EPS && abs(rho_grad_x - other.rho_grad_x) < EPS
+            && abs(rho_grad_y - other.rho_grad_y) < EPS && abs(rho_grad_z - other.rho_grad_z) < EPS;
+    }
 };
 
 typedef cuco::static_map<idx4, Cell*> map_type;
@@ -74,6 +86,9 @@ struct ramses_hash {
         return hashval;
     };
 };
+
+// template<>
+// struct cuco::is_bitwise_comparable<Cell> : true_type {};
 
 // --------------- FUNCTION DECLARATIONS ------------ //
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
@@ -217,17 +232,19 @@ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is
     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
 }
 
-void find(const idx4& idx_cell, map_type & hashtable, thrust::device_vector<Cell*> & value) {
+Cell* find(const idx4& idx_cell, map_type & hashtable) {
     thrust::device_vector<idx4> key(1);
+    thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
     hashtable.find(key.begin(), key.end(), value.begin(), ramses_hash{}, idx4_equals{});
+    cout << "first value: " << value[0] << endl;
+    return value[0];
 }
 
 // Check if a cell exists
 bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
-    thrust::device_vector<Cell*> value(1);
-    find(idx_cell, hashtable, value);
-    return value[0] != empty_pcell_sentinel;
+    Cell* pCell = find(idx_cell, hashtable);
+    return pCell != empty_pcell_sentinel;
 }
 
 // void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable) {
@@ -310,7 +327,6 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
 //     }
 // }
 
-
 int main() {
     
     // // make base grid iterator
@@ -321,19 +337,68 @@ int main() {
     //     }
     // );
 
-    map_type hashtable{
-        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+    Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
+    cuco::static_map<idx4, Cell> hashtable{
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_cell_sentinel}
     };
     
     
-    thrust::device_vector<cuco::pair<idx4, Cell*>> test_pair(1);
+    thrust::device_vector<cuco::pair<idx4, Cell>> test_pair;
     idx4 idx_cell{1, 1, 1, 1};
-    Cell test_cell{1., 0., 0., 0., 1};
+    Cell test_cell{1, 1, 1, 1, 1};
 
-    test_pair.push_back(cuco::pair<idx4, Cell*>(idx_cell, &test_cell));
+    cout << "address of test_cell:" << endl;
+    cout << test_cell.rho << endl;
 
+    test_pair.push_back(cuco::pair<idx4, Cell>(idx_cell, test_cell));
     hashtable.insert(test_pair.begin(), test_pair.end(), ramses_hash{}, idx4_equals{});
 
+    // bool test_exist;
+    // test_exist = checkIfExists(idx_cell, hashtable);
+    // cout << test_exist << endl;
+
     // makeBaseGrid();
+
+    // Retrieve contents of all the non-empty slots in the map
+    thrust::device_vector<idx4> result_keys(2);
+    thrust::device_vector<Cell> result_values(2);
+    hashtable.retrieve_all(result_keys.begin(), result_values.begin());
+
+    cout << "KEYS:" << endl;
+    for (auto k : result_keys) {
+        cout << k << endl;
+    }
+
+    Cell result;
+    cout << "VALUES:" << endl;
+    for (auto v : result_values) {
+        result = v;
+        cout << result.rho << endl;
+    }
+}
+
+
+int main2() {
+
+    cuco::static_map<int32_t, int32_t> hashtable{NMAX, cuco::empty_key{-1}, cuco::empty_value{-1}};
+    thrust::device_vector<cuco::pair<int32_t, int32_t>> test_pair;
+    test_pair.push_back(pair<int32_t, int32_t>(2, 3));
+    hashtable.insert(test_pair.begin(), test_pair.end());
+
+    // Retrieve contents of all the non-empty slots in the map
+    thrust::device_vector<int32_t> result_keys(2);
+    thrust::device_vector<int32_t> result_values(2);
+    hashtable.retrieve_all(result_keys.begin(), result_values.begin());
+
+    cout << "KEYS:" << endl;
+    for (auto k : result_keys) {
+        cout << k << endl;
+    }
+
+    cout << "VALUES:" << endl;
+    for (auto v : result_values) {
+        cout << v << endl;
+    }
+
 
 }
