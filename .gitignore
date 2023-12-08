@@ -5,4 +5,5 @@ notes.sh
 **/*.exe
 **/*.csv
 **/*.png
+**/*.txt
 **/*.swp
