@@ -55,7 +55,7 @@ ostream& operator<<(ostream &os, const idx4 &idx) {
 // custom device key equal callable
 struct idx4_equals {
     template <typename key_type>
-    __device__ bool operator()(key_type const& lhs, key_type const& rhs) {
+    __host__ __device__ bool operator()(key_type const& lhs, key_type const& rhs) {
         return lhs.idx3[0] == rhs.idx3[0] && lhs.idx3[1] == rhs.idx3[1] && lhs.idx3[2] == rhs.idx3[2] && lhs.L == rhs.L;
     }
 };
@@ -81,7 +81,7 @@ typedef cuco::static_map<idx4, Cell*> map_type;
 // custom key type hash
 struct ramses_hash {
     template <typename key_type>
-    __device__ uint32_t operator()(key_type k) {
+    __host__ __device__ int32_t operator()(key_type k) {
         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
         return hashval;
     };
@@ -233,10 +233,10 @@ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is
 }
 
 Cell* find(const idx4& idx_cell, map_type & hashtable) {
-    thrust::device_vector<idx4> key(1);
+    thrust::device_vector<idx4> key;
     thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
-    hashtable.find(key.begin(), key.end(), value.begin(), ramses_hash{}, idx4_equals{});
+    hashtable.find(key.begin(), key.end(), value.begin());
     cout << "first value: " << value[0] << endl;
     return value[0];
 }
@@ -365,17 +365,19 @@ int main() {
     // trying zip iterator
     hashtable.insert(zipped, zipped + insert_keys.size());
 
-    // /*
-    // bool test_exist;
-    // test_exist = checkIfExists(idx_cell, hashtable);
-    // cout << test_exist << endl;
+    bool test_exist;
+    test_exist = checkIfExists(idx_cell, hashtable);
+    cout << "KEY EXISTS? " << test_exist << endl;
+    test_exist = checkIfExists(idx4{1,2,3,4}, hashtable);
+    cout << "FAKE KEY EXISTS? " << test_exist << endl;
 
     // makeBaseGrid();
 
     // Retrieve contents of all the non-empty slots in the map
-    // thrust::device_vector<idx4> result_keys(2);
+    thrust::device_vector<idx4> result_keys(2);
     thrust::device_vector<Cell*> result_values(2);
     hashtable.find(insert_keys.begin(), insert_keys.end(), result_values.begin());
+    // hashtable.retrieve_all(result_keys.begin(), result_values.begin());
 
     // cout << "KEYS:" << endl;
     // for (auto k : result_keys) {
