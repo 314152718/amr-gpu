@@ -3,6 +3,7 @@
 Storing some useful notes/commands here
 
 ### Modules:
+(Tip: Put the following in your `~/.bash_profile` to run it automatically upon login:)
 ```
 module load cudatoolkit/12.2
 ```
@@ -15,7 +16,7 @@ g++ --std=c++17 -I. amr-cpu.cpp -o runcpu
 GPU
 nvcc --std=c++17 -arch=sm_70 -I. --expt-relaxed-constexpr --expt-extended-lambda cuco_test.cu -o rungpu
 ```
-- Have to compile for at least architecture `sm_60` (CUCO doesn't work for architectures below that, and the default is `sm_52`)
+- Have to compile for at least architecture `sm_70` (CUCO doesn't work for architectures below that, and the default is `sm_52`)
 - need to specify c++17 as well
 - adding `-I.` so that all the `#include <cuco/...>` statements are able to find the cuco header files
 

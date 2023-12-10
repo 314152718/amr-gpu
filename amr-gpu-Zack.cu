@@ -337,22 +337,35 @@ int main() {
     //     }
     // );
 
-    Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
-    cuco::static_map<idx4, Cell> hashtable{
-        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_cell_sentinel}
+    // Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
+    cuco::static_map<idx4, Cell*> hashtable{
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
     };
     
-    
-    thrust::device_vector<cuco::pair<idx4, Cell>> test_pair;
     idx4 idx_cell{1, 1, 1, 1};
-    Cell test_cell{1, 1, 1, 1, 1};
+    Cell* pTest_cell = new Cell{1, 1, 1, 1, 1}; // create on heap
 
-    cout << "address of test_cell:" << endl;
-    cout << test_cell.rho << endl;
+    cout << "address of test_cell:" << pTest_cell << endl;
+    cout << "test cell rho:" << pTest_cell->rho << endl;
 
-    test_pair.push_back(cuco::pair<idx4, Cell>(idx_cell, test_cell));
-    hashtable.insert(test_pair.begin(), test_pair.end(), ramses_hash{}, idx4_equals{});
+    // cuco::pair<idx4, Cell*> pPair;
+    //     test_pair.push_back(cuco::pair<idx4, Cell*>(idx_cell, pTest_cell));
+    // for (auto x : test_pair) {
+    //     pPair = x; // read from device
+    //     cout << "Pair item: " << pPair.first << " | " << pPair.second << endl;
+    // }
 
+    thrust::device_vector<idx4> insert_keys;
+    insert_keys.push_back(idx_cell);
+    thrust::device_vector<Cell*> insert_values;
+    insert_values.push_back(pTest_cell);
+    auto zipped =
+        thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
+
+    // trying zip iterator
+    hashtable.insert(zipped, zipped + insert_keys.size());
+
+    // /*
     // bool test_exist;
     // test_exist = checkIfExists(idx_cell, hashtable);
     // cout << test_exist << endl;
@@ -360,21 +373,25 @@ int main() {
     // makeBaseGrid();
 
     // Retrieve contents of all the non-empty slots in the map
-    thrust::device_vector<idx4> result_keys(2);
-    thrust::device_vector<Cell> result_values(2);
-    hashtable.retrieve_all(result_keys.begin(), result_values.begin());
+    // thrust::device_vector<idx4> result_keys(2);
+    thrust::device_vector<Cell*> result_values(2);
+    hashtable.find(insert_keys.begin(), insert_keys.end(), result_values.begin());
 
-    cout << "KEYS:" << endl;
-    for (auto k : result_keys) {
-        cout << k << endl;
-    }
+    // cout << "KEYS:" << endl;
+    // for (auto k : result_keys) {
+    //     cout << k << endl;
+    // }
 
-    Cell result;
+    Cell* pResult;
     cout << "VALUES:" << endl;
     for (auto v : result_values) {
-        result = v;
-        cout << result.rho << endl;
+        // v is a pointer to Cell
+        pResult = v;
+        cout << pResult << endl;
     }
+
+    delete pTest_cell;
+    // */
 }
 
 
