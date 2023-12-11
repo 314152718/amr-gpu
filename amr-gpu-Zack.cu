@@ -33,7 +33,6 @@ const double rho_crit = 0.01; // critical density for refinement
 const double sigma = 0.001; // std of Gaussian density field
 const double EPS = 0.000001;
 
-
 // custom key type
 struct idx4 {
     int32_t idx3[NDIM], L;
@@ -96,7 +95,13 @@ void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
 void getHindex(idx4 idx_cell, int& hindex);
 void getHindexInv(int hindex, int L, idx4& idx_cell);
 void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable);
-void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf);
+void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf, map_type &hashtable);
+void insertIntoMap(map_type &hashtable, const idx4& key, Cell* const value);
+
+// ------- GLOBALS --------- //
+
+thrust::device_vector<idx4> insert_keys;
+thrust::device_vector<Cell*> insert_values;
 
 
 // ------------------------------------------------ //
@@ -237,42 +242,66 @@ Cell* find(const idx4& idx_cell, map_type & hashtable) {
     thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
     hashtable.find(key.begin(), key.end(), value.begin());
-    cout << "first value: " << value[0] << endl;
+    // cout << "Searching for " << idx_cell << ", found: " << value[0] << endl;
     return value[0];
 }
 
 // Check if a cell exists
 bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     Cell* pCell = find(idx_cell, hashtable);
+    // cout <<  "pCell != empty_pcell_sentinel: " << (pCell != empty_pcell_sentinel) << endl;
     return pCell != empty_pcell_sentinel;
 }
 
-// void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable) {
-//     idx4 idx_cell;
-//     for (int L = 0; L <= LBASE; L++) {
-//         for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
-//             getHindexInv(hindex, L, idx_cell);
-//             setGridCell(idx_cell, hindex, L == LBASE, hashtable);
-//         }
-//     }
-// };
+void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable) {
+    idx4 idx_cell;
+    for (int L = 0; L <= LBASE; L++) {
+        for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+            getHindexInv(hindex, L, idx_cell);
+            setGridCell(idx_cell, hindex, L == LBASE, hashtable);
+        }
+    }
+};
 
-// void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf, map_type &hashtable) {
-//     if (checkIfExists(idx_cell, hashtable)) throw runtime_error("setting existing cell");
+void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf, map_type &hashtable) {
+    if (checkIfExists(idx_cell, hashtable)) throw runtime_error("setting existing cell");
 
-//     int offset;
-//     double dx, coord[3];
-//     offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
+    int offset;
+    double dx, coord[3];
+    offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
 
-//     dx = 1 / pow(2, idx_cell.L);
-//     for (int i = 0; i < NDIM; i++)
-//         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
+    dx = 1 / pow(2, idx_cell.L);
+    for (int i = 0; i < NDIM; i++)
+        coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     
-//     grid[offset + hindex].rho = rhoFunc(coord, sigma);
-//     grid[offset + hindex].flag_leaf = flag_leaf;
-//     if (offset + hindex >= NMAX) throw runtime_error("offset () + hindex >= N_cell_max");
-//     hashtable[idx_cell] = &grid[offset + hindex];
-// }
+    grid[offset + hindex].rho = rhoFunc(coord, sigma);
+    grid[offset + hindex].flag_leaf = flag_leaf;
+    if (offset + hindex >= NMAX) throw runtime_error("offset () + hindex >= N_cell_max");
+
+    // INSERT INTO HASHTABLE
+    // hashtable[idx_cell] = &grid[offset + hindex];
+    insertIntoMap(hashtable, idx_cell, &grid[offset + hindex]);
+}
+
+/*
+*/
+// TODO: this could probably also run on GPU (using a device view)
+void insertIntoMap(map_type &hashtable, const idx4& key, Cell* const value) {
+    if (insert_keys.size() < 1) {
+        insert_keys.push_back(key);
+    } else {
+        insert_keys[0] = key;
+    }
+    if (insert_values.size() < 1) {
+        insert_values.push_back(value);
+    } else {
+        insert_values[0] = value;
+    }
+    auto zipped =
+        thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
+
+    hashtable.insert(zipped, zipped + insert_keys.size());
+}
 
 // void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
 //     if (i == NDIM) {
@@ -329,19 +358,39 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
 
 int main() {
     
-    // // make base grid iterator
-    // auto pairs_begin = thrust::make_transform_iterator(
-    //     thrust::make_counting_iterator<int32_t>(0),
-    //     [] __device__(auto i) {
-    //         return cuco::make_pair(idx4{i}, Cell{i});
-    //     }
-    // );
-
     // Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
     cuco::static_map<idx4, Cell*> hashtable{
         NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
     };
-    
+
+    makeBaseGrid(grid, hashtable);
+
+    /*
+    // Retrieve contents of all the non-empty slots in the map
+    thrust::device_vector<idx4> result_keys(2);
+    thrust::device_vector<Cell*> result_values(2);
+    hashtable.find(insert_keys.begin(), insert_keys.end(), result_values.begin());
+    // hashtable.retrieve_all(result_keys.begin(), result_values.begin());
+
+    // cout << "KEYS:" << endl;
+    // for (auto k : result_keys) {
+    //     cout << k << endl;
+    // }
+
+    Cell* pResult;
+    cout << "VALUES:" << endl;
+    for (auto v : result_values) {
+        // v is a pointer to Cell
+        pResult = v;
+        cout << pResult << endl;
+    }
+
+    delete pTest_cell;
+    */
+}
+
+/*
+int main3() {
     idx4 idx_cell{1, 1, 1, 1};
     Cell* pTest_cell = new Cell{1, 1, 1, 1, 1}; // create on heap
 
@@ -370,32 +419,8 @@ int main() {
     cout << "KEY EXISTS? " << test_exist << endl;
     test_exist = checkIfExists(idx4{1,2,3,4}, hashtable);
     cout << "FAKE KEY EXISTS? " << test_exist << endl;
-
-    // makeBaseGrid();
-
-    // Retrieve contents of all the non-empty slots in the map
-    thrust::device_vector<idx4> result_keys(2);
-    thrust::device_vector<Cell*> result_values(2);
-    hashtable.find(insert_keys.begin(), insert_keys.end(), result_values.begin());
-    // hashtable.retrieve_all(result_keys.begin(), result_values.begin());
-
-    // cout << "KEYS:" << endl;
-    // for (auto k : result_keys) {
-    //     cout << k << endl;
-    // }
-
-    Cell* pResult;
-    cout << "VALUES:" << endl;
-    for (auto v : result_values) {
-        // v is a pointer to Cell
-        pResult = v;
-        cout << pResult << endl;
-    }
-
-    delete pTest_cell;
-    // */
 }
-
+*/
 
 int main2() {
 
