@@ -303,60 +303,80 @@ void insertIntoMap(map_type &hashtable, const idx4& key, Cell* const value) {
     hashtable.insert(zipped, zipped + insert_keys.size());
 }
 
-// void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
-//     if (i == NDIM) {
-//         int hindex;
-//         getHindex(idx_cell, hindex);
-//         setGridCell(idx_cell, hindex, true, hashtable);
-//         return;
-//     }
+void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
+    if (i == NDIM) {
+        int hindex;
+        getHindex(idx_cell, hindex);
+        setGridCell(idx_cell, hindex, true, hashtable);
+        return;
+    }
 
-//     setChildrenHelper(idx_cell, i+1, hashtable);
-//     idx_cell.idx3[i]++;
-//     setChildrenHelper(idx_cell, i+1, hashtable);
-// }
+    setChildrenHelper(idx_cell, i+1, hashtable);
+    idx_cell.idx3[i]++;
+    setChildrenHelper(idx_cell, i+1, hashtable);
+}
 
 
-// void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
-//     int hindex;
-//     getHindex(idx_cell, hindex);
+void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
+    int hindex;
+    getHindex(idx_cell, hindex);
 
-//     if (!checkIfExists(idx_cell, hashtable)) throw runtime_error("Trying to refine non-existant cell!");
+    Cell *pCell;
+    pCell = find(idx_cell, hashtable);
+    if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell!");
 
-//     if (!hashtable[idx_cell].flag_leaf) throw runtime_error("trying to refine non-leaf");
-//     if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
-//     hashtable[idx_cell].flag_leaf = false;
+    if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
+    if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
+    pCell->flag_leaf = false;
 
-//     idx4 idx_child = idx_cell;
-//     idx_child.L++;
-//     for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
+    idx4 idx_child = idx_cell;
+    idx_child.L++;
+    for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
 
-//     // todo: fix bug where it doesn't actually go thru all the permutations
-//     setChildrenHelper(idx_child, 0, hashtable);
+    setChildrenHelper(idx_child, 0, hashtable);
 
-//     // refine neighbors if needed
-//     idx4 idx_neighbor, idx_parent;
-//     int hindex_neighbor;
-//     for (short dir = 0; dir < NDIM; dir++) {
-//         for (short pos = 0; pos < 2; pos++) {
-//             bool is_border;
-//             checkIfBorder(idx_cell, dir, pos, is_border);
-//             if (is_border) continue;
-//             getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
-//             // don't need to remove 'if' statements because this is part not for GPU (only gradient is)
-//             // don't need to refine if exists
-//             if (checkIfExists(idx_neighbor, hashtable)) continue;
+    // refine neighbors if needed
+    idx4 idx_neighbor, idx_parent;
+    int hindex_neighbor;
+    for (short dir = 0; dir < NDIM; dir++) {
+        for (short pos = 0; pos < 2; pos++) {
+            bool is_border;
+            checkIfBorder(idx_cell, dir, pos, is_border);
+            if (is_border) continue;
+            getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+            // don't need to remove 'if' statements because this is part not for GPU (only gradient is)
+            // don't need to refine if exists
+            if (checkIfExists(idx_neighbor, hashtable)) continue;
 
-//             // if not exists, drop L by differen
-//             // we assume that L is at most different by 1
-//             getParentIdx(idx_cell, idx_parent);
-//             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
-//             refineGridCell(idx_neighbor, hashtable);
-//         }
-//     }
-// }
+            // if not exists, drop L by differen
+            // we assume that L is at most different by 1
+            getParentIdx(idx_cell, idx_parent);
+            getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
+            refineGridCell(idx_neighbor, hashtable);
+        }
+    }
+}
 
-int main() {
+void refineGrid1lvl(map_type& hashtable) {
+    // rewrite with retrieve_all
+    // idx4 idx_cell;
+    // Cell* pCell;
+
+    // vector<idx4> key_copy;
+    // key_copy.reserve(hashtable.size());
+    // for(auto kv : hashtable) {
+    //     key_copy.push_back(kv.first);
+    // }
+    // for (auto it = key_copy.begin(); it != key_copy.end(); it++) {
+    //     idx_cell = *it;
+    //     pCell = hashtable[idx_cell];
+    //     if (refCrit(pCell->rho) && pCell->flag_leaf) {
+    //         refineGridCell(idx_cell, hashtable);
+    //     }
+    // }
+}
+
+int main4() {
     
     // Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
     cuco::static_map<idx4, Cell*> hashtable{
@@ -364,6 +384,17 @@ int main() {
     };
 
     makeBaseGrid(grid, hashtable);
+    const int num_ref = LMAX - LBASE;
+    for (short i = 0; i < num_ref; i++) {
+       refineGrid1lvl(hashtable);
+    }
+
+    // auto start = high_resolution_clock::now();
+    // calcGrad();
+    // auto stop = high_resolution_clock::now();
+    // auto duration = duration_cast<milliseconds>(stop - start);
+    // cout << duration.count() << " ms" << endl;
+    // writeGrid();
 
     /*
     // Retrieve contents of all the non-empty slots in the map
@@ -389,20 +420,15 @@ int main() {
     */
 }
 
-/*
-int main3() {
+int main() {
     idx4 idx_cell{1, 1, 1, 1};
     Cell* pTest_cell = new Cell{1, 1, 1, 1, 1}; // create on heap
+    cuco::static_map<idx4, Cell*> hashtable{
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+    };
 
     cout << "address of test_cell:" << pTest_cell << endl;
     cout << "test cell rho:" << pTest_cell->rho << endl;
-
-    // cuco::pair<idx4, Cell*> pPair;
-    //     test_pair.push_back(cuco::pair<idx4, Cell*>(idx_cell, pTest_cell));
-    // for (auto x : test_pair) {
-    //     pPair = x; // read from device
-    //     cout << "Pair item: " << pPair.first << " | " << pPair.second << endl;
-    // }
 
     thrust::device_vector<idx4> insert_keys;
     insert_keys.push_back(idx_cell);
@@ -419,11 +445,26 @@ int main3() {
     cout << "KEY EXISTS? " << test_exist << endl;
     test_exist = checkIfExists(idx4{1,2,3,4}, hashtable);
     cout << "FAKE KEY EXISTS? " << test_exist << endl;
+
+    // trying retrieve all
+    // Retrieve contents of all the non-empty slots in the map
+    // why retrieve all not working?
+    thrust::device_vector<idx4> result_keys(2);
+    thrust::device_vector<Cell*> result_values(2);
+    hashtable.retrieve_all(result_keys.begin(), result_values.begin());
+
+    cout << "KEYS:" << endl;
+    for (auto k : result_keys) {
+        cout << k << endl;
+    }
+
+    cout << "VALUES:" << endl;
+    for (auto v : result_values) {
+        cout << v << endl;
+    }
 }
-*/
 
 int main2() {
-
     cuco::static_map<int32_t, int32_t> hashtable{NMAX, cuco::empty_key{-1}, cuco::empty_value{-1}};
     thrust::device_vector<cuco::pair<int32_t, int32_t>> test_pair;
     test_pair.push_back(pair<int32_t, int32_t>(2, 3));
