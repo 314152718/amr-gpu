@@ -277,23 +277,18 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
 // Check if a cell exists
 bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     Cell* pCell = find(hashtable, idx_cell);
-    // cout <<  "pCell != empty_pcell_sentinel: " << (pCell != empty_pcell_sentinel) << endl;
     return pCell != empty_pcell_sentinel;
 }
 
 void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable) {
     // not making enough leaves?
-    size_t leaves = 0;
     idx4 idx_cell;
     for (int L = 0; L <= LBASE; L++) {
         for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
             setGridCell(idx_cell, hindex, L == LBASE, hashtable);
-            leaves += L == LBASE;
         }
     }
-
-    cout << "Created " << leaves << " leaves" << endl;
 };
 
 void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable) {
@@ -332,7 +327,6 @@ void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
     if (i == NDIM) {
         int hindex;
         getHindex(idx_cell, hindex);
-        cout << "hindex of " << idx_cell << ": " << hindex << endl;
         setGridCell(idx_cell, hindex, 1, hashtable);
         return;
     }
@@ -344,21 +338,17 @@ void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
 
 
 void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
-    cout << "Refining " << idx_cell << endl;
     int hindex;
     getHindex(idx_cell, hindex);
 
     Cell *pCell = find(hashtable, idx_cell);
     if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell!");
 
-    cout << "Address of cell: " << pCell << endl;
-
     if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
     if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
     
     // make this cell a non-leaf
     pCell->flag_leaf = 0;
-    cout << "FLAG LEAF SHOULD BE 0: " << pCell->flag_leaf << endl;
 
     idx4 idx_child = idx_cell;
     idx_child.L++;
@@ -384,7 +374,6 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
             // we assume that L is at most different by 1
             getParentIdx(idx_cell, idx_parent);
             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
-            cout << "Refining neighbor: " << idx_neighbor << endl;
             refineGridCell(idx_neighbor, hashtable);
         }
     }
@@ -422,23 +411,14 @@ void refineGrid1lvl(map_type& hashtable) {
     }
     idx4 idx_cell;
     Cell* pCell = nullptr;
-    size_t i = 0, j=0; 
     for (auto entry : entries) { // entry is on device
         thrust::tuple<idx4, Cell*> t = entry; // t is on host
-        cout << "Cell " << i << " of " << entries.size();
         idx_cell = t.get<0>();
         pCell = t.get<1>();
-        // std::cout << "Retrieved pair: " << idx_cell << ", " << pCell << endl;
-        cout << ". " << idx_cell;
-        cout << ". rho = " << pCell->rho;
-        cout << ". flag_leaf = " << pCell->flag_leaf << endl;
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
-            j++;
             refineGridCell(idx_cell, hashtable); // refinement step is failing
         }
-        i++;
     }
-    cout << "Finished refining one level. # base refinements (without neighbors) j = " << j << endl;
 }
 
 
