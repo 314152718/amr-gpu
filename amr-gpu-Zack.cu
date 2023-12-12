@@ -11,6 +11,9 @@
 #include <stdexcept>
 #include <chrono>
 
+// #include <typeinfo>
+// #include <typeindex>
+
 // gpu includes
 #include "cuco/static_map.cuh"
 #include <thrust/device_vector.h>
@@ -92,9 +95,15 @@ ostream& operator<<(ostream &os, Cell const &cell) {
 }
 
 typedef cuco::static_map<idx4, Cell*> map_type;
+typedef thrust::zip_iterator<
+    thrust::tuple<
+        thrust::detail::normal_iterator<thrust::device_ptr<idx4>>, 
+        thrust::detail::normal_iterator<thrust::device_ptr<Cell*>>
+    >
+> zip_type;
 
-// custom key type hash
-struct ramses_hash {
+    // custom key type hash
+    struct ramses_hash {
     template <typename key_type>
     __host__ __device__ int32_t operator()(key_type k) {
         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
@@ -118,7 +127,7 @@ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &i
 void calcGradCell(const idx4 idx_cell, Cell* cell, map_type &hashtable);
 void calcGrad(map_type &hashtable);
 void writeGrid(map_type &hashtable);
-thrust::zip_iterator<thrust::tuple<idx4, Cell*>> retrieve_zipped(map_type &hashtable);
+// zip_type retrieve_zipped(map_type &hashtable);
 
 // ------- GLOBALS --------- //
 
@@ -371,20 +380,31 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
     }
 }
 
-thrust::zip_iterator<thrust::tuple<idx4, Cell*>> retrieve_zipped(map_type& hashtable) {
+// zip_type retrieve_zipped(map_type& hashtable) {
+//     size_t numCells = hashtable.get_size();
+//     thrust::device_vector<idx4> retrieved_keys(numCells);
+//     thrust::device_vector<Cell*> retrieved_values(numCells);
+//     hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+//     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+//     zip_type zipped = 
+//         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+
+//     // // Use typeid and type_index to get type information
+//     // const std::type_info& typeInfo = typeid(zipped);
+//     // std::type_index typeIndex = std::type_index(typeInfo);
+//     // cout << "zip type: " << typeIndex.name() << endl;
+
+//     return zipped;
+// }
+
+void refineGrid1lvl(map_type& hashtable) {
     size_t numCells = hashtable.get_size();
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
     hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
-
-    auto zipped = 
+    auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
-    return zipped;
-}
-
-void refineGrid1lvl(map_type& hashtable) {
-    auto zipped = retrieve_zipped(hashtable);
     idx4 idx_cell;
     Cell* pCell;
     for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
@@ -449,7 +469,13 @@ void calcGradCell(const idx4 idx_cell, Cell* cell, map_type &hashtable) {
 
 // compute the gradient
 void calcGrad(map_type &hashtable) {
-    thrust::zip_iterator<thrust::tuple<idx4, Cell*>> zipped = retrieve_zipped(hashtable);
+    size_t numCells = hashtable.get_size();
+    thrust::device_vector<idx4> retrieved_keys(numCells);
+    thrust::device_vector<Cell*> retrieved_values(numCells);
+    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+    auto zipped =
+        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
     idx4 idx_cell;
     Cell* pCell;
     for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
@@ -467,7 +493,13 @@ void writeGrid(map_type& hashtable) {
     idx4 idx_cell;
     Cell* pCell;
     outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
-    thrust::zip_iterator<thrust::tuple<idx4, Cell*>> zipped = retrieve_zipped(hashtable);
+    size_t numCells = hashtable.get_size();
+    thrust::device_vector<idx4> retrieved_keys(numCells);
+    thrust::device_vector<Cell*> retrieved_values(numCells);
+    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+     zipped =
+        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
     for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
