@@ -341,11 +341,14 @@ void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
 
 
 void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
+    cout << "Refining " << idx_cell << endl;
     int hindex;
     getHindex(idx_cell, hindex);
 
     Cell *pCell = find(hashtable, idx_cell);
     if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell!");
+
+    cout << "Address of cell: " << pCell << endl;
 
     if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
     if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
@@ -375,6 +378,7 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
             // we assume that L is at most different by 1
             getParentIdx(idx_cell, idx_parent);
             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
+            cout << "Refining neighbor: " << idx_neighbor << endl;
             refineGridCell(idx_neighbor, hashtable);
         }
     }
@@ -405,17 +409,22 @@ void refineGrid1lvl(map_type& hashtable) {
     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+    size_t hashtable_size = hashtable.get_size();
     idx4 idx_cell;
-    Cell* pCell;
-    for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
+    Cell* pCell = nullptr;
+    size_t i = 0; 
+    for (auto it = zipped; it != zipped + hashtable_size; it++) {
         thrust::tuple<idx4, Cell*> t = *it;
+        cout << "Cell " << i << " of " << hashtable_size << endl;
         idx_cell = t.get<0>();
         pCell = t.get<1>();
-        std::cout << "Retrieved pair: " << idx_cell << ", " << pCell << endl;
+        // std::cout << "Retrieved pair: " << idx_cell << ", " << pCell << endl;
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
-            refineGridCell(idx_cell, hashtable);
+            // refineGridCell(idx_cell, hashtable); // if we comment this out do things work??
         }
+        i++;
     }
+    cout << "Finished refining one level" << endl;
 }
 
 
@@ -477,7 +486,7 @@ void calcGrad(map_type &hashtable) {
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
     idx4 idx_cell;
-    Cell* pCell;
+    Cell* pCell = nullptr;
     for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
@@ -491,14 +500,14 @@ void writeGrid(map_type& hashtable) {
     ofstream outfile;
     outfile.open(outfile_name);
     idx4 idx_cell;
-    Cell* pCell;
+    Cell* pCell = nullptr;
     outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
     size_t numCells = hashtable.get_size();
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
     hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
-     zipped =
+    auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
     for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
         thrust::tuple<idx4, Cell*> t = *it;
@@ -518,12 +527,19 @@ int main() {
         NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
     };
 
+    // grid memory accessible from CPU or GPU?
+    // cudaMallocManaged(&x, N * sizeof(float));
+
+    cout << "Making base grid" << endl;
     makeBaseGrid(grid, hashtable);
     const int num_ref = LMAX - LBASE;
+    cout << "Refining grid levels" << endl;
     for (short i = 0; i < num_ref; i++) {
        refineGrid1lvl(hashtable);
     }
+    cout << "Finished refining grid levels" << endl;
 
+    cout << "Calculating gradients" << endl;
     auto start = high_resolution_clock::now();
     // TODO: run this on GPU with <<NUM_BLOCKS, NUM_THREADS_PER_BLOCK>> syntax
     calcGrad(hashtable);
