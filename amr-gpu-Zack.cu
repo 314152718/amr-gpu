@@ -359,24 +359,27 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
 
 void refineGrid1lvl(map_type& hashtable) {
     // rewrite with retrieve_all
-    // idx4 idx_cell;
-    // Cell* pCell;
+    size_t numCells = hashtable.get_size();
+    thrust::device_vector<idx4> retrieved_keys(numCells);
+    thrust::device_vector<Cell*> retrieved_values(numCells);
+    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin()); // doesn't populate values for some reason
+    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
 
-    // vector<idx4> key_copy;
-    // key_copy.reserve(hashtable.size());
-    // for(auto kv : hashtable) {
-    //     key_copy.push_back(kv.first);
-    // }
-    // for (auto it = key_copy.begin(); it != key_copy.end(); it++) {
-    //     idx_cell = *it;
-    //     pCell = hashtable[idx_cell];
-    //     if (refCrit(pCell->rho) && pCell->flag_leaf) {
-    //         refineGridCell(idx_cell, hashtable);
-    //     }
-    // }
+    auto zipped = thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+    idx4 idx_cell;
+    Cell* pCell;
+    for (auto it = zipped; it != zipped + retrieved_keys.size(); it++) {
+        thrust::tuple<idx4, Cell*> t = *it;
+        idx_cell = t.get<0>();
+        pCell = t.get<1>();
+        cout << "Retrieved pair: " << idx_cell << ", " << pCell << endl;
+        if (refCrit(pCell->rho) && pCell->flag_leaf) {
+            refineGridCell(idx_cell, hashtable);
+        }
+    }
 }
 
-int main4() {
+int main() {
     
     // Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
     cuco::static_map<idx4, Cell*> hashtable{
@@ -420,7 +423,7 @@ int main4() {
     */
 }
 
-int main() {
+int main2() {
     idx4 idx_cell{1, 1, 1, 1};
     Cell* pTest_cell = new Cell{1, 1, 1, 1, 1}; // create on heap
     cuco::static_map<idx4, Cell*> hashtable{
@@ -452,6 +455,7 @@ int main() {
     thrust::device_vector<idx4> result_keys(2);
     thrust::device_vector<Cell*> result_values(2);
     hashtable.retrieve_all(result_keys.begin(), result_values.begin());
+    hashtable.find(result_keys.begin(), result_keys.end(), result_values.begin());
 
     cout << "KEYS:" << endl;
     for (auto k : result_keys) {
@@ -464,16 +468,35 @@ int main() {
     }
 }
 
-int main2() {
-    cuco::static_map<int32_t, int32_t> hashtable{NMAX, cuco::empty_key{-1}, cuco::empty_value{-1}};
-    thrust::device_vector<cuco::pair<int32_t, int32_t>> test_pair;
-    test_pair.push_back(pair<int32_t, int32_t>(2, 3));
+int main3() {
+    using Key = idx4;
+    using Value = Cell*;
+    // cuco::static_map<Key, Value> hashtable{NMAX, cuco::empty_key{-1}, cuco::empty_value{-1}};
+
+    idx4 idx_cell{1, 1, 1, 1};
+    Cell* pTest_cell = new Cell{1, 1, 1, 1, 1}; // create on heap
+    cout << "Address of test cell: " << pTest_cell << endl;
+    cuco::static_map<Key, Value> hashtable{
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+    };
+
+    thrust::device_vector<cuco::pair<Key, Value>> test_pair;
+    // test_pair.push_back(pair<Key, Value>(2, 3));
+    test_pair.push_back(pair<Key, Value>(idx_cell, pTest_cell));
     hashtable.insert(test_pair.begin(), test_pair.end());
 
+    // check if its in the table correctly?
+    Cell* pResult;
+    pResult = find(idx_cell, hashtable);
+    cout << "Found" << pResult << endl;
+    cout << "Size: " << hashtable.get_size() << endl;
+
     // Retrieve contents of all the non-empty slots in the map
-    thrust::device_vector<int32_t> result_keys(2);
-    thrust::device_vector<int32_t> result_values(2);
+    thrust::device_vector<Key> result_keys(1);
+    thrust::device_vector<Value> result_values(1);
+    // roundabout solution since retrieve_all not getting values: use it to get all keys, and then pass into find to get all values
     hashtable.retrieve_all(result_keys.begin(), result_values.begin());
+    hashtable.find(result_keys.begin(), result_keys.end(), result_values.begin());
 
     cout << "KEYS:" << endl;
     for (auto k : result_keys) {
