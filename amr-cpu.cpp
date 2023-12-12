@@ -64,7 +64,7 @@ void hilbertToTranspose(const int hindex, const int L, int (&X)[N_dim]) {
 
 // Compute the Hilbert index for a given 4-idx (i, j, k, L)
 void getHindex(idx4 idx_cell, int& hindex) {
-    int X[3];
+    int X[N_dim];
     for (short i = 0; i < N_dim; i++) {
         X[i] = idx_cell.idx3[i];
     }
