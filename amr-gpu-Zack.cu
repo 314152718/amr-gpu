@@ -3,6 +3,7 @@
 
 // cpu includes
 #include <iostream>
+#include<stdio.h>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -22,8 +23,8 @@
 #include <cub/block/block_reduce.cuh>
 #include <cuda/std/atomic>
 
-// namespaces
-using namespace std;
+    // namespaces
+    using namespace std;
 using namespace std::chrono;
 
 // constants
@@ -31,7 +32,7 @@ const int32_t LBASE = 3; // base AMR level
 const int32_t LMAX = 6; // max AMR level
 const int32_t NDIM = 3; // number of dimensions
 const int32_t NMAX = 2097152 + 10; // maximum number of cells
-const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
+// const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
 const __device__ double FD_KERNEL[4][4] = {
     {-1., 0., 1., 3.},
     {-9., 5., 4., 15.},
@@ -96,14 +97,14 @@ ostream& operator<<(ostream &os, Cell const &cell) {
 typedef cuco::static_map<idx4, Cell*> map_type;
 typedef cuco::static_map<idx4, Cell*>::device_view map_view_type;
 
-    // custom key type hash
-    struct ramses_hash {
-    template <typename key_type>
-    __host__ __device__ int32_t operator()(key_type k) {
-        int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
-        return hashval;
-    };
-};
+//     // custom key type hash
+//     struct ramses_hash {
+//     template <typename key_type>
+//     __host__ __device__ int32_t operator()(key_type k) {
+//         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
+//         return hashval;
+//     };
+// };
 
 // template<>
 // struct cuco::is_bitwise_comparable<Cell> : true_type {};
@@ -159,7 +160,6 @@ void getHindex(idx4 idx_cell, int& hindex) {
     }
     int L = idx_cell.L;
     int m = 1 << (L - 1), p, q, t;
-    int i;
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
         p = q - 1;
@@ -270,11 +270,21 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
     // cout << "Searching for " << idx_cell << ", found: " << value[0] << endl;
     return value[0];
 }
+
 // GPU version: use map_view_type's find function (just one key at a time)
-__device__ void find(map_view_type& hashtable, const idx4& idx_cell, Cell* pCell) {
-    cuco::static_map<idx4, Cell*>::device_view::const_iterator pair = hashtable.find(idx_cell);
+__device__ void find(map_view_type &hashtable, const idx4 &idx_cell, Cell *pCell) {
+#if __CUDA_ARCH__ >= 200
+    printf("Finding %s\n", idx_cell);
+#endif
+    cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell);
     // cout << "Searching for " << idx_cell << ", found: " << value[0] << endl;
-    pCell = pair->second;
+#if __CUDA_ARCH__ >= 200
+    printf("Found. Setting pCell");
+#endif
+    // pCell = pair->second;
+#if __CUDA_ARCH__ >= 200
+    printf("Done.\n");
+#endif
 }
 
 // Check if a cell exists
@@ -283,8 +293,23 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     return pCell != empty_pcell_sentinel;
 }
 __device__ void checkIfExists(const idx4& idx_cell, map_view_type &hashtable, bool &res) {
-    Cell* pCell = nullptr;
+#if __CUDA_ARCH__ >= 200
+    printf("Creating pointer\n");
+#endif
+    Cell* pCell = nullptr; // maybe this isn't allowed?
+
+#if __CUDA_ARCH__ >= 200
+    printf("pCell right now (nullptr) : %s\n", pCell);
+#endif
+
+#if __CUDA_ARCH__ >= 200
+    printf("Going to find()\n");
+#endif
     find(hashtable, idx_cell, pCell);
+
+#if __CUDA_ARCH__ >= 200
+    printf("setting res\n");
+#endif
     res = pCell != empty_pcell_sentinel;
 }
 
@@ -367,7 +392,6 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
 
     // refine neighbors if needed
     idx4 idx_neighbor, idx_parent;
-    int hindex_neighbor;
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
             bool is_border;
@@ -460,11 +484,29 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
     // check if the cell is a border cell
+#if __CUDA_ARCH__ >= 200
+    printf("CHECKING IF BORDER\n");
+#endif
     checkIfBorder(idx_cell, dir, pos, is_border);
+#if __CUDA_ARCH__ >= 200
+    printf("DONE CHECKING BORDER\n");
+#endif
     // compute the index of the neighbor on the same level
+#if __CUDA_ARCH__ >= 200
+    printf("GETTING NEIGHBOR IDX\n");
+#endif
     getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+#if __CUDA_ARCH__ >= 200
+    printf("DONE GETTING NEIGHBOR IDX\n");
+#endif
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
+#if __CUDA_ARCH__ >= 200
+    printf("CHECKING IF EXISTS\n");
+#endif
     checkIfExists(idx_neighbor, hashtable, exists); 
+#if __CUDA_ARCH__ >= 200
+    printf("DONE CHECKING IF EXISTS\n");
+#endif
     is_notref = !exists && !is_border;
     is_ref = !is_notref && !is_border;
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
@@ -491,7 +533,13 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type &has
     rho[2] = cell->rho;
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
+        #if __CUDA_ARCH__ >= 200
+            printf("FIRST PLACE WE ACCESS CELL FROM DEVICE: %d/%d %d/2\n", dir, NDIM, pos);
+        #endif
             getNeighborInfo(idx_cell, dir, pos, is_ref[pos], rho[pos], hashtable);
+        #if __CUDA_ARCH__ >= 200
+            printf("MADE IT THROUGH NO ERRORS\n");
+        #endif
         }
         fd_case = is_ref[0] + 2 * is_ref[1];
         cell->rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2] + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
@@ -570,7 +618,7 @@ void test_full_output() {
     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
-    calcGrad<<<8, 2>>>(view, zipped, hashtable.get_size());
+    calcGrad<<<1, 1>>>(view, zipped, hashtable.get_size());
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
