@@ -64,7 +64,7 @@ void hilbertToTranspose(const int hindex, const int L, int (&X)[N_dim]) {
 
 // Compute the Hilbert index for a given 4-idx (i, j, k, L)
 void getHindex(idx4 idx_cell, int& hindex) {
-    int X[3];
+    int X[N_dim];
     for (short i = 0; i < N_dim; i++) {
         X[i] = idx_cell.idx3[i];
     }
@@ -206,6 +206,7 @@ void setChildrenHelper(idx4 idx_cell, short i) {
     if (i == N_dim) {
         int hindex;
         getHindex(idx_cell, hindex);
+        cout << "hindex of " << idx_cell << ": " << hindex << endl;
         setGridCell(idx_cell, hindex, true);
         return;
     }
@@ -353,6 +354,7 @@ void refineGrid1lvl() {
         cout << "Cell " << i << " of " << key_copy.size();
         idx_cell = *it;
         pCell = hashtable[idx_cell];
+        cout << ". " << idx_cell;
         cout << ". rho = " << pCell->rho;
         cout << ". flag_leaf = " << pCell->flag_leaf << endl;
         if (refCrit(pCell->rho) && pCell->flag_leaf) {

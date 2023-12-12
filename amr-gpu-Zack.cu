@@ -161,7 +161,7 @@ void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]) {
 void getHindex(idx4 idx_cell, int& hindex) {
     int X[NDIM];
     for (int i=0; i<NDIM; i++){
-        X[0] = idx_cell.idx3[i];
+        X[i] = idx_cell.idx3[i];
     }
     int L = idx_cell.L;
     int m = 1 << (L - 1), p, q, t;
@@ -310,9 +310,6 @@ void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_t
     grid[offset + hindex].rho = rhoFunc(coord, sigma);
     grid[offset + hindex].flag_leaf = flag_leaf;
     if (offset + hindex >= NMAX) throw runtime_error("offset () + hindex >= N_cell_max");
-
-    // INSERT INTO HASHTABLE
-    // hashtable[idx_cell] = &grid[offset + hindex];
     insert(hashtable, idx_cell, &grid[offset + hindex]);
 }
 
@@ -335,6 +332,7 @@ void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
     if (i == NDIM) {
         int hindex;
         getHindex(idx_cell, hindex);
+        cout << "hindex of " << idx_cell << ": " << hindex << endl;
         setGridCell(idx_cell, hindex, 1, hashtable);
         return;
     }
@@ -431,6 +429,7 @@ void refineGrid1lvl(map_type& hashtable) {
         idx_cell = t.get<0>();
         pCell = t.get<1>();
         // std::cout << "Retrieved pair: " << idx_cell << ", " << pCell << endl;
+        cout << ". " << idx_cell;
         cout << ". rho = " << pCell->rho;
         cout << ". flag_leaf = " << pCell->flag_leaf << endl;
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
