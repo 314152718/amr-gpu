@@ -172,13 +172,16 @@ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is
 }
 
 void makeBaseGrid(Cell (&grid)[N_cell_max]) {
+    size_t leaves = 0;
     idx4 idx_cell;
     for (int L = 0; L <= L_base; L++) {
         for (int hindex = 0; hindex < pow(2, N_dim * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
             setGridCell(idx_cell, hindex, L == L_base);
+            leaves += L == L_base;
         }
     }
+    cout << "Created " << leaves << " leaves" << endl;
 }
 
 void setGridCell(const idx4 idx_cell, const int hindex, bool flag_leaf) {
@@ -213,6 +216,7 @@ void setChildrenHelper(idx4 idx_cell, short i) {
 }
 
 void refineGridCell(const idx4 idx_cell) {
+    cout << "Refining " << idx_cell << endl;
     int hindex;
     getHindex(idx_cell, hindex);
 
@@ -344,13 +348,20 @@ void refineGrid1lvl() {
     for(auto kv : hashtable) {
         key_copy.push_back(kv.first);
     }
+    size_t i = 0, j = 0;
     for (auto it = key_copy.begin(); it != key_copy.end(); it++) {
+        cout << "Cell " << i << " of " << key_copy.size();
         idx_cell = *it;
         pCell = hashtable[idx_cell];
+        cout << ". rho = " << pCell->rho;
+        cout << ". flag_leaf = " << pCell->flag_leaf << endl;
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
+            j++;
             refineGridCell(idx_cell);
         }
+        i++;
     }
+    cout << "Finished refining one level. # base refinements (without neighbors) j = " << j << endl;
 }
 
 int main() {

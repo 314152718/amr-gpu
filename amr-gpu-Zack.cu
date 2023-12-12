@@ -74,12 +74,12 @@ struct idx4_equals {
 
 // custom value type
 struct Cell {
-    int32_t rho;
+    double rho;
     double rho_grad[3];
     int32_t flag_leaf;
 
     __host__ __device__ Cell() {}
-    __host__ __device__ Cell(int32_t rho_init, double rho_grad_x_init, double rho_grad_y_init, double rho_grad_z_init, 
+    __host__ __device__ Cell(double rho_init, double rho_grad_x_init, double rho_grad_y_init, double rho_grad_z_init, 
         int32_t flag_leaf_init) : rho{rho_init}, rho_grad{rho_grad_x_init, rho_grad_y_init, rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
 
     __host__ __device__ bool operator==(Cell const& other) const {
@@ -282,13 +282,18 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
 }
 
 void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable) {
+    // not making enough leaves?
+    size_t leaves = 0;
     idx4 idx_cell;
     for (int L = 0; L <= LBASE; L++) {
         for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
             setGridCell(idx_cell, hindex, L == LBASE, hashtable);
+            leaves += L == LBASE;
         }
     }
+
+    cout << "Created " << leaves << " leaves" << endl;
 };
 
 void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable) {
@@ -419,19 +424,22 @@ void refineGrid1lvl(map_type& hashtable) {
     }
     idx4 idx_cell;
     Cell* pCell = nullptr;
-    size_t i = 0; 
+    size_t i = 0, j=0; 
     for (auto entry : entries) { // entry is on device
         thrust::tuple<idx4, Cell*> t = entry; // t is on host
-        cout << "Cell " << i << " of " << entries.size() << endl;
+        cout << "Cell " << i << " of " << entries.size();
         idx_cell = t.get<0>();
         pCell = t.get<1>();
         // std::cout << "Retrieved pair: " << idx_cell << ", " << pCell << endl;
+        cout << ". rho = " << pCell->rho;
+        cout << ". flag_leaf = " << pCell->flag_leaf << endl;
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
+            j++;
             refineGridCell(idx_cell, hashtable); // refinement step is failing
         }
         i++;
     }
-    cout << "Finished refining one level" << endl;
+    cout << "Finished refining one level. # base refinements (without neighbors) j = " << j << endl;
 }
 
 
