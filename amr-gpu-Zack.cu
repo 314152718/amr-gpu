@@ -76,11 +76,11 @@ struct idx4_equals {
 struct Cell {
     int32_t rho;
     double rho_grad[3];
-    int8_t flag_leaf;
+    int32_t flag_leaf;
 
     __host__ __device__ Cell() {}
     __host__ __device__ Cell(int32_t rho_init, double rho_grad_x_init, double rho_grad_y_init, double rho_grad_z_init, 
-        int8_t flag_leaf_init) : rho{rho_init}, rho_grad{rho_grad_x_init, rho_grad_y_init, rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
+        int32_t flag_leaf_init) : rho{rho_init}, rho_grad{rho_grad_x_init, rho_grad_y_init, rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
 
     __host__ __device__ bool operator==(Cell const& other) const {
         return abs(rho - other.rho) < EPS && abs(rho_grad[0] - other.rho_grad[0]) < EPS
@@ -120,7 +120,7 @@ void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
 void getHindex(idx4 idx_cell, int& hindex);
 void getHindexInv(int hindex, int L, idx4& idx_cell);
 void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable);
-void setGridCell(const idx4 idx_cell, const int hindex, int8_t flag_leaf, map_type &hashtable);
+void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable);
 Cell* find(map_type &hashtable, const idx4& key);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
 void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
@@ -291,7 +291,7 @@ void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable) {
     }
 };
 
-void setGridCell(const idx4 idx_cell, const int hindex, int8_t flag_leaf, map_type &hashtable) {
+void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable) {
     if (checkIfExists(idx_cell, hashtable)) throw runtime_error("setting existing cell");
 
     int offset;
@@ -352,13 +352,16 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
 
     if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
     if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
+    
+    // make this cell a non-leaf
     pCell->flag_leaf = 0;
+    cout << "FLAG LEAF SHOULD BE 0: " << pCell->flag_leaf << endl;
 
     idx4 idx_child = idx_cell;
     idx_child.L++;
     for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
 
-    // todo: fix bug where it doesn't actually go thru all the permutations
+    // and create 2^NDIM leaf children
     setChildrenHelper(idx_child, 0, hashtable);
 
     // refine neighbors if needed
@@ -409,18 +412,22 @@ void refineGrid1lvl(map_type& hashtable) {
     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
-    size_t hashtable_size = hashtable.get_size();
+    // copy to an actual copy of the keys, that won't change as we refine
+    thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(hashtable.get_size());
+    for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
+        entries[it - zipped] = *it;
+    }
     idx4 idx_cell;
     Cell* pCell = nullptr;
     size_t i = 0; 
-    for (auto it = zipped; it != zipped + hashtable_size; it++) {
-        thrust::tuple<idx4, Cell*> t = *it;
-        cout << "Cell " << i << " of " << hashtable_size << endl;
+    for (auto entry : entries) { // entry is on device
+        thrust::tuple<idx4, Cell*> t = entry; // t is on host
+        cout << "Cell " << i << " of " << entries.size() << endl;
         idx_cell = t.get<0>();
         pCell = t.get<1>();
         // std::cout << "Retrieved pair: " << idx_cell << ", " << pCell << endl;
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
-            // refineGridCell(idx_cell, hashtable); // if we comment this out do things work??
+            refineGridCell(idx_cell, hashtable); // refinement step is failing
         }
         i++;
     }
