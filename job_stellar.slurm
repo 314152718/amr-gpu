@@ -9,4 +9,4 @@
 #SBATCH --time=00:01:00          # total run time limit (HH:MM:SS)
 
 export DATE=`date +%F_%Hh%M`
-./rungpu > run_$DATE.log
+./rungpu > run_$DATE.log 2>&1
