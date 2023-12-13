@@ -32,17 +32,17 @@ const int32_t LBASE = 3; // base AMR level
 const int32_t LMAX = 6; // max AMR level
 const int32_t NDIM = 3; // number of dimensions
 const int32_t NMAX = 2097152 + 10; // maximum number of cells
-// const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
 const __device__ double FD_KERNEL[4][4] = {
     {-1., 0., 1., 3.},
     {-9., 5., 4., 15.},
     {-4., -5., 9., 15.},
     {-1., 0., 1., 2.}
 };
+
 const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
 const double sigma = 0.001; // std of Gaussian density field
-const double EPS = 0.000001;
+const double EPS = 0.000001; // small number
 const string outfile_name = "grid-gpu.csv";
 
 // custom key type
@@ -53,14 +53,15 @@ struct idx4 {
     __host__ __device__ idx4() {}
     __host__ __device__ idx4(int32_t i_init, int32_t j_init, int32_t k_init, int32_t L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
 
-    // copy constructor for copy by value
-    __host__ __device__ idx4 (const idx4 &other)
-    {
-        this->L = other.L;
-        for (short i = 0; i < NDIM; i++) {
-            this->idx3[i] = other.idx3[i];
-        }
-    }
+    // // copy constructor for copy by value
+    // __host__ __device__ idx4 (const idx4 &other)
+    // {
+    //     memcpy(this, &other, sizeof(idx4));
+    //     // this->L = other.L;
+    //     // for (short i = 0; i < NDIM; i++) {
+    //     //     this->idx3[i] = other.idx3[i];
+    //     // }
+    // }
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
@@ -70,12 +71,13 @@ struct idx4 {
 };
 #pragma pack(pop)
 
+// custom key output stream representation
 ostream& operator<<(ostream &os, idx4 const &idx_cell) {
     os << "[" << idx_cell.idx3[0] << ", " << idx_cell.idx3[1] << ", " << idx_cell.idx3[2] << "](L=" << idx_cell.L << ")";
     return os;
 }
 
-// custom device key equal callable
+// custom key equal callable
 struct idx4_equals {
     template <typename key_type>
     __host__ __device__ bool operator()(key_type const& lhs, key_type const& rhs) {
@@ -99,41 +101,56 @@ struct Cell {
     }
 };
 
+// custom value output stream representation
 ostream& operator<<(ostream &os, Cell const &cell) {
     os << "[rho " << cell.rho << ", rho_grad_x " << cell.rho_grad[0] << ", rho_grad_y"
        << cell.rho_grad[1] << ", rho_grad_z " << cell.rho_grad[2] << ", flag_leaf " << cell.flag_leaf << "]";
     return os;
 }
 
+// define hashtable types
 typedef cuco::static_map<idx4, Cell*> map_type;
 typedef cuco::static_map<idx4, Cell*>::device_view map_view_type;
 
-//     // custom key type hash
-//     struct ramses_hash {
-//     template <typename key_type>
-//     __host__ __device__ int32_t operator()(key_type k) {
-//         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
-//         return hashval;
-//     };
-// };
-
+// declare custom value typr to be bitwise comparable
 // template<>
 // struct cuco::is_bitwise_comparable<Cell> : true_type {};
 
 // --------------- FUNCTION DECLARATIONS ------------ //
+
+// host functions
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
 void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
 void getHindex(idx4 idx_cell, int& hindex);
 void getHindexInv(int hindex, int L, idx4& idx_cell);
+double rhoFunc(const double coord[NDIM], const double sigma);
+bool refCrit(double rho);
+void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
+Cell* find(map_type &hashtable, const idx4& key);
+bool checkIfExists(const idx4& idx_cell, map_type &hashtable);
 void makeBaseGrid(Cell *grid, map_type &hashtable);
 void setGridCell(Cell *grid, const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable);
-Cell* find(map_type &hashtable, const idx4& key);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
+void setChildrenHelper(Cell *grid, idx4 idx_cell, short i, map_type &hashtable);
+void refineGridCell(Cell *grid, const idx4 idx_cell, map_type &hashtable);
+void refineGrid1lvl(Cell *grid, map_type& hashtable);
 void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
 void calcGradCell(const idx4 idx_cell, Cell* cell, map_type &hashtable);
 void calcGrad(map_type &hashtable);
 void writeGrid(map_type &hashtable);
-// zip_type retrieve_zipped(map_type &hashtable);
+
+// host and device functions
+__host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const short pos, bool &is_border);
+__host__ __device__ void getNeighborIdx(const idx4 &idx_cell, const int dir, const bool pos, idx4 &idx_neighbor);
+
+// device functions
+__device__ void find(map_view_type hashtable, idx4 idx_cell, Cell *&pCell);
+__device__ void checkIfExists(idx4 idx_cell, map_view_type hashtable, bool &res);
+__device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const short pos, bool &is_ref, double &rho_neighbor, map_view_type hashtable);
+__device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type hashtable);
+
+// kernel functions
+__global__ void calcGrad(map_view_type hashtable, auto zipped, size_t hashtable_size);
 
 // ------- GLOBALS --------- //
 
@@ -258,14 +275,11 @@ void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent) {
 // Compute the indices of the neighbor cells in a given direction
 __host__ __device__ void getNeighborIdx(const idx4 &idx_cell, const int dir, const bool pos, idx4 &idx_neighbor) {
     for (short i = 0; i < NDIM; i++) {
-        idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
+        idx_neighbor.idx3[i] = idx_cell.idx3[i] + (pos * 2 - 1) * int(i == dir);
     }
     idx_neighbor.L = idx_cell.L;
 }
 
-// void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border) {
-//     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
-// }
 __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const short pos, bool &is_border) {
     is_border = idx_cell.idx3[dir] == pos * (pow(2, idx_cell.L) - 1);
 }
