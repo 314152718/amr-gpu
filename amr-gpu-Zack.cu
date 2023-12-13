@@ -51,6 +51,12 @@ struct idx4 {
 
     __host__ __device__ idx4() {}
     __host__ __device__ idx4(int32_t i_init, int32_t j_init, int32_t k_init, int32_t L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
+    __device__ idx4(idx4 const& other) {
+        idx3[0] = other.idx3[0];
+        idx3[1] = other.idx3[1];
+        idx3[2] = other.idx3[2];
+        L = other.L;
+    }
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
