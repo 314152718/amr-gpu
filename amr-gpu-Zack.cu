@@ -323,7 +323,8 @@ __device__ void checkIfExists(idx4 idx_cell, map_view_type hashtable, bool &res)
 #if __CUDA_ARCH__ >= 200
     printf("Creating pointer\n");
 #endif
-    Cell* pCell = nullptr; // maybe this isn't allowed?
+    // Cell* pCell = nullptr; // maybe this isn't allowed?
+    Cell* pCell = new Cell{1, 1, 1, 1, 1};
 
 #if __CUDA_ARCH__ >= 200
     printf("pCell right now (nullptr) : %s\n", pCell);
@@ -643,10 +644,10 @@ void test_full_output() {
     calcGrad<<<NBLOCKS, NTHREADPERBLOCK>>>(view, zipped, hashtable.get_size());
     cudaDeviceSynchronize();
     auto stop = high_resolution_clock::now(); // stop timer
-    cout << "Done calculation gradients." << endl;
+    cout << "Done calculating gradients." << endl;
 
     // free data from device
-    cudaFree(grid);
+    // cudaFree(grid);
 
     // print timer
     auto duration = duration_cast<milliseconds>(stop - start);
