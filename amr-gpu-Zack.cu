@@ -23,8 +23,8 @@
 #include <cub/block/block_reduce.cuh>
 #include <cuda/std/atomic>
 
-    // namespaces
-    using namespace std;
+// namespaces
+using namespace std;
 using namespace std::chrono;
 
 // constants
@@ -66,6 +66,7 @@ struct idx4 {
     __device__ bool operator==(idx4 const& other) const {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
+    // __device__: identifier std basic string is undefined in device code
     string str() const {
         return "["+to_string(idx3[0])+", "+to_string(idx3[1])+", "+to_string(idx3[2])+"](L="+to_string(L)+")";
     }
@@ -285,12 +286,12 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
 }
 
 // GPU version: use map_view_type's find function (just one key at a time)
-__device__ void find(map_view_type &hashtable, const idx4 &idx_cell, Cell *pCell) {
+__device__ void find(map_view_type &hashtable, const idx4 idx_cell, Cell *pCell) {
 #if __CUDA_ARCH__ >= 200
-    printf("Finding %s\n", idx_cell);
+    printf("Finding %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
 #endif
+    // error here when doing existing cell 25 32 43 6
     cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell);
-    // cout << "Searching for " << idx_cell << ", found: " << value[0] << endl;
 #if __CUDA_ARCH__ >= 200
     printf("Found. Setting pCell");
 #endif
@@ -305,7 +306,7 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     Cell* pCell = find(hashtable, idx_cell);
     return pCell != empty_pcell_sentinel;
 }
-__device__ void checkIfExists(const idx4& idx_cell, map_view_type &hashtable, bool &res) {
+__device__ void checkIfExists(const idx4 idx_cell, map_view_type &hashtable, bool &res) {
 #if __CUDA_ARCH__ >= 200
     printf("Creating pointer\n");
 #endif
@@ -316,7 +317,7 @@ __device__ void checkIfExists(const idx4& idx_cell, map_view_type &hashtable, bo
 #endif
 
 #if __CUDA_ARCH__ >= 200
-    printf("Going to find(): %s\n", idx_cell);
+    printf("Going to find(): %d\n", idx_cell.L);
 #endif
     find(hashtable, idx_cell, pCell);
 
@@ -443,6 +444,33 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
 //     return zipped;
 // }
 
+void printHashtableIdx(map_type& hashtable) {
+    size_t numCells = hashtable.get_size();
+    thrust::device_vector<idx4> retrieved_keys(numCells);
+    thrust::device_vector<Cell*> retrieved_values(numCells);
+    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+    auto zipped =
+        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+
+    thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(hashtable.get_size());
+    for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
+        entries[it - zipped] = *it;
+    }
+    idx4 idx_cell;
+    Cell* pCell = nullptr;
+
+    cout << "CELLS\n";
+    for (auto entry : entries) { // entry is on device
+        thrust::tuple<idx4, Cell*> t = entry; // t is on host
+        idx_cell = t.get<0>();
+        pCell = t.get<1>();
+        if (idx_cell.idx3[0] == 25 && idx_cell.idx3[1] == 32)
+            cout << idx_cell << ' ' << pCell->rho << ' ';
+    }
+    cout << endl;
+}
+
 void refineGrid1lvl(map_type& hashtable) {
     size_t numCells = hashtable.get_size();
     thrust::device_vector<idx4> retrieved_keys(numCells);
@@ -501,11 +529,11 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     bool is_border, is_notref, exists;
     // check if the cell is a border cell
 #if __CUDA_ARCH__ >= 200
-    printf("CHECKING IF BORDER\n");
+    printf("CHECKING IF BORDER %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
 #endif
     checkIfBorder(idx_cell, dir, pos, is_border);
 #if __CUDA_ARCH__ >= 200
-    printf("DONE CHECKING BORDER\n");
+    printf("DONE CHECKING BORDER %d\n", is_border);
 #endif
     // compute the index of the neighbor on the same level
 #if __CUDA_ARCH__ >= 200
@@ -550,7 +578,7 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type &has
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
         #if __CUDA_ARCH__ >= 200
-            printf("FIRST PLACE WE ACCESS CELL FROM DEVICE: %d/%d %d/2\n", dir, NDIM, pos);
+            printf("FIRST PLACE WE ACCESS CELL FROM DEVICE: %d/%d %d/2 %d\n", dir, NDIM, pos, idx_cell.L);
         #endif
             getNeighborInfo(idx_cell, dir, pos, is_ref[pos], rho[pos], hashtable);
         #if __CUDA_ARCH__ >= 200
@@ -570,6 +598,9 @@ __global__ void calcGrad(map_view_type &hashtable, auto zipped, size_t hashtable
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
         pCell = t.get<1>();
+        #if __CUDA_ARCH__ >= 200
+            printf("HELLO calcGrad %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
+        #endif
         calcGradCell(idx_cell, pCell, hashtable);
     }
 }
@@ -603,6 +634,18 @@ void writeGrid(map_type& hashtable) {
 
 // all tests (later move out)
 
+__global__ void test_idx_cell_copy() { // prints nothing
+    //to run: test_idx_cell_copy<<<1, 1>>>();
+    #if __CUDA_ARCH__ >= 200
+        printf("START");
+    #endif
+    idx4 idx_cell{1, 1, 1, 1};
+    idx_cell = idx4{2, 2, 2, 2};
+    #if __CUDA_ARCH__ >= 200
+        printf("test... %d", idx_cell.L);
+    #endif
+}
+
 void test_full_output() {
     // Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
     cuco::static_map<idx4, Cell*> hashtable{
@@ -620,6 +663,7 @@ void test_full_output() {
        refineGrid1lvl(hashtable);
     }
     cout << "Finished refining grid levels" << endl;
+    printHashtableIdx(hashtable);
 
     cout << "Calculating gradients" << endl;
     auto start = high_resolution_clock::now();
