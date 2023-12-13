@@ -66,6 +66,9 @@ struct idx4 {
     __device__ bool operator==(idx4 const& other) const {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
+    string str() const {
+        return "["+to_string(idx3[0])+", "+to_string(idx3[1])+", "+to_string(idx3[2])+"](L="+to_string(L)+")";
+    }
 };
 
 ostream& operator<<(ostream &os, idx4 const &idx_cell) {
@@ -257,7 +260,8 @@ void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent) {
 }
 
 // Compute the indices of the neighbor cells in a given direction
-__host__ __device__ void getNeighborIdx(const idx4 &idx_cell, const int dir, const bool pos, idx4 &idx_neighbor) {
+__host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, const bool pos, idx4 idx_neighbor) {
+    // after this getNeighborIdx is applied, must check if neighbor exists (border) !!!
     for (short i = 0; i < NDIM; i++) {
         idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
     }
@@ -384,7 +388,7 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
     getHindex(idx_cell, hindex);
 
     Cell *pCell = find(hashtable, idx_cell);
-    if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell!");
+    if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
 
     if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
     if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
@@ -413,7 +417,10 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
             // if not exists, drop L by differen
             // we assume that L is at most different by 1
             getParentIdx(idx_cell, idx_parent);
+            if (!checkIfExists(idx_parent, hashtable)) throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
+            if (!checkIfExists(idx_neighbor, hashtable)) continue; // parent is at border
+
             refineGridCell(idx_neighbor, hashtable);
         }
     }
@@ -451,12 +458,13 @@ void refineGrid1lvl(map_type& hashtable) {
     }
     idx4 idx_cell;
     Cell* pCell = nullptr;
+
     for (auto entry : entries) { // entry is on device
         thrust::tuple<idx4, Cell*> t = entry; // t is on host
         idx_cell = t.get<0>();
         pCell = t.get<1>();
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
-            refineGridCell(idx_cell, hashtable); // refinement step is failing
+            refineGridCell(idx_cell, hashtable);
         }
     }
 }
