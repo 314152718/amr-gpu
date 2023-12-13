@@ -51,12 +51,15 @@ struct idx4 {
 
     __host__ __device__ idx4() {}
     __host__ __device__ idx4(int32_t i_init, int32_t j_init, int32_t k_init, int32_t L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
-    __device__ idx4(idx4 const& other) {
+    __host__ __device__ idx4(const int32_t ijk_init[NDIM], int32_t L_init) : idx3{ijk_init[0], ijk_init[1], ijk_init[2]}, L{L_init} {}
+    //__host__ __device__ idx4(idx4 const& other) : idx3{other.idx3[0], other.idx3[1], other.idx3[2]}, L{other.L} {}
+    /*__host__ __device__ idx4(idx4 const& other) {
+        static_assert(cuco::is_bitwise_comparable_v<idx4>);
         idx3[0] = other.idx3[0];
         idx3[1] = other.idx3[1];
         idx3[2] = other.idx3[2];
         L = other.L;
-    }
+    }*/
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
@@ -309,7 +312,7 @@ __device__ void checkIfExists(const idx4& idx_cell, map_view_type &hashtable, bo
 #endif
 
 #if __CUDA_ARCH__ >= 200
-    printf("Going to find()\n");
+    printf("Going to find(): %s\n", idx_cell);
 #endif
     find(hashtable, idx_cell, pCell);
 
@@ -389,8 +392,7 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
     // make this cell a non-leaf
     pCell->flag_leaf = 0;
 
-    idx4 idx_child = idx_cell;
-    idx_child.L++;
+    idx4 idx_child(idx_cell.idx3, idx_cell.L + 1);
     for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
 
     // and create 2^NDIM leaf children
