@@ -23,8 +23,8 @@
 #include <cub/block/block_reduce.cuh>
 #include <cuda/std/atomic>
 
-    // namespaces
-    using namespace std;
+// namespaces
+using namespace std;
 using namespace std::chrono;
 
 // constants
@@ -38,6 +38,8 @@ const __device__ double FD_KERNEL[4][4] = {
     {-4., -5., 9., 15.},
     {-1., 0., 1., 2.}
 };
+const int32_t NBLOCKS = 1;
+const int32_t NTHREADPERBLOCK = 1;
 
 const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
@@ -53,15 +55,15 @@ struct idx4 {
     __host__ __device__ idx4() {}
     __host__ __device__ idx4(int32_t i_init, int32_t j_init, int32_t k_init, int32_t L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
 
-    // // copy constructor for copy by value
-    // __host__ __device__ idx4 (const idx4 &other)
-    // {
-    //     memcpy(this, &other, sizeof(idx4));
-    //     // this->L = other.L;
-    //     // for (short i = 0; i < NDIM; i++) {
-    //     //     this->idx3[i] = other.idx3[i];
-    //     // }
-    // }
+    // copy constructor for copy by value
+    __host__ __device__ idx4 (const idx4 &other)
+    {
+        this->L = other.L;
+        this->idx3[0] = other.idx3[0];
+        this->idx3[1] = other.idx3[1];
+        this->idx3[2] = other.idx3[2];
+        this->idx3[3] = other.idx3[3];
+    }
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
@@ -597,44 +599,62 @@ void writeGrid(map_type& hashtable) {
 
 void test_full_output() {
 
+    // create the grid array
     Cell *grid;
-    cudaMallocManaged(&grid, NMAX * sizeof(Cell));
 
-    // Cell empty_cell_sentinel{-1, -1, -1, -1, -1};
+    // create the hashtable
     cuco::static_map<idx4, Cell*> hashtable{
         NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
     };
 
+    // allocate managed memory that is accessable to both CPU and GPU
+    cudaMallocManaged(&grid, NMAX * sizeof(Cell));
+    cudaMallocManaged(&hashtable, NMAX * sizeof(Cell));
+
     // grid memory accessible from CPU or GPU?
     // cudaMallocManaged(&x, N * sizeof(float));
 
-    cout << "Making base grid" << endl;
+    // make base grid
+    cout << "Making base grid..." << endl;
     makeBaseGrid(grid, hashtable);
+    cout << "Done making base grid." << endl;
+    
+    // refine grid
+    cout << "Refining the grid..." << endl;
     const int num_ref = LMAX - LBASE;
-    cout << "Refining grid levels" << endl;
     for (short i = 0; i < num_ref; i++) {
        refineGrid1lvl(grid, hashtable);
     }
-    cout << "Finished refining grid levels" << endl;
-
-    cout << "Calculating gradients" << endl;
-    auto start = high_resolution_clock::now();
+    cout << "Done refining the grid." << endl;
 
     // run as kernel on GPU. map_view_type can be copied by value
     map_view_type view = hashtable.get_device_view();
-    // get zipped values before kicking off kernels
+
+    // retrieve hashtable keys and values
     size_t numCells = hashtable.get_size();
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
-    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
-    auto zipped =
-        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
-    calcGrad<<<1, 1>>>(view, zipped, hashtable.get_size());
+    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values vector (why?)
+    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin());
+    auto zipped = thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+    
+    // calculate gradients
+    auto start = high_resolution_clock::now(); // start timer
+    cout << "Calculating gradients..." << endl;
+    calcGrad<<<NBLOCKS, NTHREADPERBLOCK>>>(view, zipped, hashtable.get_size());
+    cudaDeviceSynchronize();
+    auto stop = high_resolution_clock::now(); // stop timer
+    cout << "Done calculation gradients." << endl;
 
-    auto stop = high_resolution_clock::now();
+    // free data from device
+    cudaFree(grid);
+    cudaFree(hashtable);
+
+    // print timer
     auto duration = duration_cast<milliseconds>(stop - start);
     cout << duration.count() << " ms" << endl;
+    
+    // write grid data
     writeGrid(hashtable);
 }
 
