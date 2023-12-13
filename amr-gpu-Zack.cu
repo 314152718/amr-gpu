@@ -55,15 +55,15 @@ struct idx4 {
     __host__ __device__ idx4() {}
     __host__ __device__ idx4(int32_t i_init, int32_t j_init, int32_t k_init, int32_t L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
 
-    // copy constructor for copy by value
-    __host__ __device__ idx4 (const idx4 &other)
-    {
-        this->L = other.L;
-        this->idx3[0] = other.idx3[0];
-        this->idx3[1] = other.idx3[1];
-        this->idx3[2] = other.idx3[2];
-        this->idx3[3] = other.idx3[3];
-    }
+    // // copy constructor for copy by value
+    // __host__ __device__ idx4 (const idx4 &other)
+    // {
+    //     this->L = other.L;
+    //     this->idx3[0] = other.idx3[0];
+    //     this->idx3[1] = other.idx3[1];
+    //     this->idx3[2] = other.idx3[2];
+    //     this->idx3[3] = other.idx3[3];
+    // }
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
@@ -609,7 +609,6 @@ void test_full_output() {
 
     // allocate managed memory that is accessable to both CPU and GPU
     cudaMallocManaged(&grid, NMAX * sizeof(Cell));
-    cudaMallocManaged(&hashtable, NMAX * sizeof(Cell));
 
     // grid memory accessible from CPU or GPU?
     // cudaMallocManaged(&x, N * sizeof(float));
@@ -648,7 +647,6 @@ void test_full_output() {
 
     // free data from device
     cudaFree(grid);
-    cudaFree(hashtable);
 
     // print timer
     auto duration = duration_cast<milliseconds>(stop - start);
