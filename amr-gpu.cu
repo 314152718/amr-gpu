@@ -257,7 +257,7 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
 
 // GPU version: use map_view_type's find function (just one key at a time)
 __device__ void find(map_view_type &hashtable, const idx4 idx_cell, Cell *pCell) {
-    cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell_ref);
+    cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell);
     pCell = pair->second;
 }
 
