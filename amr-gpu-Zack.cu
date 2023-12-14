@@ -52,14 +52,6 @@ struct idx4 {
     __host__ __device__ idx4() {}
     __host__ __device__ idx4(int32_t i_init, int32_t j_init, int32_t k_init, int32_t L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
     __host__ __device__ idx4(const int32_t ijk_init[NDIM], int32_t L_init) : idx3{ijk_init[0], ijk_init[1], ijk_init[2]}, L{L_init} {}
-    //__host__ __device__ idx4(idx4 const& other) : idx3{other.idx3[0], other.idx3[1], other.idx3[2]}, L{other.L} {}
-    /*__host__ __device__ idx4(idx4 const& other) {
-        static_assert(cuco::is_bitwise_comparable_v<idx4>);
-        idx3[0] = other.idx3[0];
-        idx3[1] = other.idx3[1];
-        idx3[2] = other.idx3[2];
-        L = other.L;
-    }*/
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
@@ -110,18 +102,6 @@ ostream& operator<<(ostream &os, Cell const &cell) {
 typedef cuco::static_map<idx4, Cell*> map_type;
 typedef cuco::static_map<idx4, Cell*>::device_view map_view_type;
 
-//     // custom key type hash
-//     struct ramses_hash {
-//     template <typename key_type>
-//     __host__ __device__ int32_t operator()(key_type k) {
-//         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
-//         return hashval;
-//     };
-// };
-
-// template<>
-// struct cuco::is_bitwise_comparable<Cell> : true_type {};
-
 // --------------- FUNCTION DECLARATIONS ------------ //
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
 void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
@@ -135,9 +115,6 @@ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &i
 void calcGradCell(const idx4 idx_cell, Cell* cell, map_type &hashtable);
 void calcGrad(map_type &hashtable);
 void writeGrid(map_type &hashtable);
-// zip_type retrieve_zipped(map_type &hashtable);
-
-// ------- GLOBALS --------- //
 
 
 // ------------------------------------------------ //
@@ -269,9 +246,6 @@ __host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, cons
     idx_neighbor.L = idx_cell.L;
 }
 
-// void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border) {
-//     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
-// }
 __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border) {
     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
 }
@@ -281,24 +255,13 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
     thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
     hashtable.find(key.begin(), key.end(), value.begin());
-    // cout << "Searching for " << idx_cell << ", found: " << value[0] << endl;
     return value[0];
 }
 
 // GPU version: use map_view_type's find function (just one key at a time)
 __device__ void find(map_view_type &hashtable, const idx4 idx_cell, Cell *pCell) {
-#if __CUDA_ARCH__ >= 200
-    printf("Finding %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
-#endif
-    // error here when doing existing cell 25 32 43 6
-    cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell);
-#if __CUDA_ARCH__ >= 200
-    printf("Found. Setting pCell");
-#endif
-    // pCell = pair->second;
-#if __CUDA_ARCH__ >= 200
-    printf("Done.\n");
-#endif
+    cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell_ref);
+    pCell = pair->second;
 }
 
 // Check if a cell exists
@@ -307,23 +270,8 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     return pCell != empty_pcell_sentinel;
 }
 __device__ void checkIfExists(const idx4 idx_cell, map_view_type &hashtable, bool &res) {
-#if __CUDA_ARCH__ >= 200
-    printf("Creating pointer\n");
-#endif
-    Cell* pCell = nullptr; // maybe this isn't allowed?
-
-#if __CUDA_ARCH__ >= 200
-    printf("pCell right now (nullptr) : %s\n", pCell);
-#endif
-
-#if __CUDA_ARCH__ >= 200
-    printf("Going to find(): %d\n", idx_cell.L);
-#endif
+    Cell* pCell = nullptr;
     find(hashtable, idx_cell, pCell);
-
-#if __CUDA_ARCH__ >= 200
-    printf("setting res\n");
-#endif
     res = pCell != empty_pcell_sentinel;
 }
 
@@ -355,8 +303,7 @@ void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_t
     insert(hashtable, idx_cell, &grid[offset + hindex]);
 }
 
-/*
-*/
+
 // TODO: this could probably also run on GPU (using a device view)
 void insert(map_type &hashtable, const idx4& key, Cell* const value) {
     thrust::device_vector<idx4> insert_keys;
@@ -415,10 +362,10 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
             // don't need to refine if exists
             if (checkIfExists(idx_neighbor, hashtable)) continue;
 
-            // if not exists, drop L by differen
             // we assume that L is at most different by 1
             getParentIdx(idx_cell, idx_parent);
-            if (!checkIfExists(idx_parent, hashtable)) throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
+            if (!checkIfExists(idx_parent, hashtable))
+                throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
             if (!checkIfExists(idx_neighbor, hashtable)) continue; // parent is at border
 
@@ -426,23 +373,6 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
         }
     }
 }
-
-// zip_type retrieve_zipped(map_type& hashtable) {
-//     size_t numCells = hashtable.get_size();
-//     thrust::device_vector<idx4> retrieved_keys(numCells);
-//     thrust::device_vector<Cell*> retrieved_values(numCells);
-//     hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-//     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
-//     zip_type zipped = 
-//         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
-
-//     // // Use typeid and type_index to get type information
-//     // const std::type_info& typeInfo = typeid(zipped);
-//     // std::type_index typeIndex = std::type_index(typeInfo);
-//     // cout << "zip type: " << typeIndex.name() << endl;
-
-//     return zipped;
-// }
 
 void printHashtableIdx(map_type& hashtable) {
     size_t numCells = hashtable.get_size();
@@ -528,29 +458,11 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
     // check if the cell is a border cell
-#if __CUDA_ARCH__ >= 200
-    printf("CHECKING IF BORDER %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
-#endif
     checkIfBorder(idx_cell, dir, pos, is_border);
-#if __CUDA_ARCH__ >= 200
-    printf("DONE CHECKING BORDER %d\n", is_border);
-#endif
     // compute the index of the neighbor on the same level
-#if __CUDA_ARCH__ >= 200
-    printf("GETTING NEIGHBOR IDX\n");
-#endif
     getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
-#if __CUDA_ARCH__ >= 200
-    printf("DONE GETTING NEIGHBOR IDX\n");
-#endif
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
-#if __CUDA_ARCH__ >= 200
-    printf("CHECKING IF EXISTS\n");
-#endif
     checkIfExists(idx_neighbor, hashtable, exists); 
-#if __CUDA_ARCH__ >= 200
-    printf("DONE CHECKING IF EXISTS\n");
-#endif
     is_notref = !exists && !is_border;
     is_ref = !is_notref && !is_border;
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
@@ -577,13 +489,7 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type &has
     rho[2] = cell->rho;
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
-        #if __CUDA_ARCH__ >= 200
-            printf("FIRST PLACE WE ACCESS CELL FROM DEVICE: %d/%d %d/2 %d\n", dir, NDIM, pos, idx_cell.L);
-        #endif
             getNeighborInfo(idx_cell, dir, pos, is_ref[pos], rho[pos], hashtable);
-        #if __CUDA_ARCH__ >= 200
-            printf("MADE IT THROUGH NO ERRORS\n");
-        #endif
         }
         fd_case = is_ref[0] + 2 * is_ref[1];
         cell->rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2] + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
@@ -598,9 +504,6 @@ __global__ void calcGrad(map_view_type &hashtable, auto zipped, size_t hashtable
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
         pCell = t.get<1>();
-        #if __CUDA_ARCH__ >= 200
-            printf("HELLO calcGrad %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
-        #endif
         calcGradCell(idx_cell, pCell, hashtable);
     }
 }
@@ -632,7 +535,7 @@ void writeGrid(map_type& hashtable) {
 
 
 
-// all tests (later move out)
+// all tests
 
 __global__ void test_idx_cell_copy() { // prints nothing
     //to run: test_idx_cell_copy<<<1, 1>>>();
@@ -731,8 +634,6 @@ void test_map_insert_cell_pointer() {
         pResult = v;
         cout << pResult << endl;
     }
-
-    //delete pTest_cell;
 }
  
 void test_map_insert_cell_pointer_Roma() {
