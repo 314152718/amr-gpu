@@ -157,7 +157,7 @@ __global__ void calcGrad(map_view_type hashtable, auto zipped, size_t hashtable_
 // ------- GLOBALS --------- //
 
 idx4 const empty_idx4_sentinel = idx4{-1, -1, -1, -1};
-__host__ __device__ Cell* empty_pcell_sentinel = nullptr;
+__host__ __device__ Cell empty_cell_sentinel;
 
 // ------------------------------------------------ //
 
@@ -306,7 +306,8 @@ __device__ void find(map_view_type hashtable, idx4 idx_cell, Cell *&pCell) { // 
 #if __CUDA_ARCH__ >= 200
     printf("Found? %d. Setting pCell accordingly\n", pair == hashtable.end());
 #endif
-    if (pair == hashtable.end()) pCell = nullptr;
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
+    if (pair == hashtable.end()) pCell = &empty_cell_sentinel;
     else pCell = pair->second;
 #if __CUDA_ARCH__ >= 200
     printf("Done.\n");
@@ -315,8 +316,9 @@ __device__ void find(map_view_type hashtable, idx4 idx_cell, Cell *&pCell) { // 
 
 // Check if a cell exists
 bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
     Cell* pCell = find(hashtable, idx_cell);
-    return pCell != empty_pcell_sentinel;
+    return pCell != &empty_cell_sentinel;
 }
 // passing idx_cell by value
 __device__ void checkIfExists(idx4 idx_cell, map_view_type hashtable, bool &res) {
@@ -324,7 +326,8 @@ __device__ void checkIfExists(idx4 idx_cell, map_view_type hashtable, bool &res)
     printf("Creating pointer\n");
 #endif
     // Cell* pCell = nullptr; // maybe this isn't allowed?
-    Cell* pCell = new Cell{1, 1, 1, 1, 1};
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
+    Cell* pCell = &empty_cell_sentinel;
 
 #if __CUDA_ARCH__ >= 200
     printf("pCell right now (nullptr) : %s\n", pCell);
@@ -338,7 +341,7 @@ __device__ void checkIfExists(idx4 idx_cell, map_view_type hashtable, bool &res)
 #if __CUDA_ARCH__ >= 200
     printf("setting res\n");
 #endif
-    res = pCell != nullptr;
+    res = pCell != &empty_cell_sentinel;
 }
 
 void makeBaseGrid(Cell *grid, map_type &hashtable) {
@@ -401,9 +404,10 @@ void setChildrenHelper(Cell *grid, idx4 idx_cell, short i, map_type &hashtable) 
 void refineGridCell(Cell *grid, const idx4 idx_cell, map_type &hashtable) {
     int hindex;
     getHindex(idx_cell, hindex);
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
 
     Cell *pCell = find(hashtable, idx_cell);
-    if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell!");
+    if (pCell == &empty_cell_sentinel) throw runtime_error("Trying to refine non-existant cell!");
 
     if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
     if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
@@ -470,7 +474,8 @@ void refineGrid1lvl(Cell *grid, map_type& hashtable) {
         entries[it - zipped] = *it;
     }
     idx4 idx_cell;
-    Cell* pCell = nullptr;
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
+    Cell* pCell = &empty_cell_sentinel;
     for (auto entry : entries) { // entry is on device
         thrust::tuple<idx4, Cell*> t = entry; // t is on host
         idx_cell = t.get<0>();
@@ -529,7 +534,8 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const short 
     // subtract one from the AMR level if the neighbor is not refined
     idx_neighbor.L = idx_cell.L - int(is_notref);
     // if the cell is a border cell, use the boundary condition
-    Cell* pCell = nullptr;
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
+    Cell* pCell = &empty_cell_sentinel;
     find(hashtable, idx_neighbor, pCell);
     rho_neighbor = pCell->rho * int(!is_border) + rho_boundary * int(is_border);
 }
@@ -560,7 +566,8 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type hash
 // compute the gradient
 __global__ void calcGrad(map_view_type hashtable, auto zipped, size_t hashtable_size) {
     idx4 idx_cell;
-    Cell* pCell = nullptr;
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
+    Cell* pCell = &empty_cell_sentinel;
     for (auto it = zipped; it != zipped + hashtable_size; it++) {
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
@@ -574,7 +581,8 @@ void writeGrid(map_type& hashtable) {
     ofstream outfile;
     outfile.open(outfile_name);
     idx4 idx_cell;
-    Cell* pCell = nullptr;
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
+    Cell* pCell = &empty_cell_sentinel;
     outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
     size_t numCells = hashtable.get_size();
     thrust::device_vector<idx4> retrieved_keys(numCells);
@@ -602,10 +610,11 @@ void test_full_output() {
 
     // create the grid array
     Cell *grid;
+    empty_cell_sentinel = Cell{1, 1, 1, 1, 1};
 
     // create the hashtable
     cuco::static_map<idx4, Cell*> hashtable{
-        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{&empty_cell_sentinel}
     };
 
     // allocate managed memory that is accessable to both CPU and GPU
@@ -681,7 +690,7 @@ void test_map_insert_int() {
 
 void test_map_insert_cell_pointer() {
     cuco::static_map<idx4, Cell*> hashtable{
-        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{&empty_cell_sentinel}
     };
 
     // Retrieve contents of all the non-empty slots in the map
@@ -710,7 +719,7 @@ void test_mapview_insert_cell_pointer_Roma() {
     idx4 idx_cell{1, 1, 1, 1};
     Cell* pTest_cell = new Cell{1, 1, 1, 1, 1}; // create on heap
     cuco::static_map<idx4, Cell*> hashtable{
-        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{&empty_cell_sentinel}
     };
 
     cout << "address of test_cell:" << pTest_cell << endl;
@@ -764,7 +773,7 @@ void test_map_insert_cell_pointer_Roma2() {
     Cell* pTest_cell = new Cell{1, 1, 1, 1, 1}; // create on heap
     cout << "Address of test cell: " << pTest_cell << endl;
     cuco::static_map<Key, Value> hashtable{
-        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{&empty_cell_sentinel}
     };
 
     thrust::device_vector<cuco::pair<Key, Value>> test_pair;
