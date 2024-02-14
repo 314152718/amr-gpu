@@ -25,6 +25,8 @@
 using namespace std;
 using namespace std::chrono;
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+
 // convert from transposed Hilbert index to Hilbert index
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex) {
     int n = 0;
@@ -162,8 +164,11 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
     return value[0];
 }
 __device__ void find(map_view_type &hashtable, const idx4 idx_cell, Cell *pCell) {
+    printf("Finding %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
     cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell);
+    printf("Found. Setting pCell");
     pCell = pair->second;
+    printf("Done.\n");
 }
 
 // check if a cell exists by 4-index
@@ -171,9 +176,14 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     Cell* pCell = find(hashtable, idx_cell);
     return pCell != empty_pcell_sentinel;
 }
+
 __device__ void checkIfExists(const idx4 idx_cell, map_view_type &hashtable, bool &res) {
+    printf("Creating pointer\n");
     Cell* pCell = nullptr;
+    printf("pCell right now (nullptr) : %s\n", pCell);
+    printf("Going to find(): %d\n", idx_cell.L);
     find(hashtable, idx_cell, pCell);
+    printf("setting res\n");
     res = pCell != empty_pcell_sentinel;
 }
 
@@ -347,11 +357,17 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
     // check if the cell is a border cell
+    printf("CHECKING IF BORDER %d %d %d %d\n", idx_cell.idx3[0], idx_cell.idx3[1], idx_cell.idx3[2], idx_cell.L);
     checkIfBorder(idx_cell, dir, pos, is_border);
+    printf("DONE CHECKING BORDER %d\n", is_border);
     // compute the index of the neighbor on the same level
+    printf("GETTING NEIGHBOR IDX\n");
     getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+    printf("DONE GETTING NEIGHBOR IDX\n");
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
+    printf("CHECKING IF EXISTS\n");
     checkIfExists(idx_neighbor, hashtable, exists); 
+    printf("DONE CHECKING IF EXISTS\n");
     is_notref = !exists && !is_border;
     is_ref = !is_notref && !is_border;
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
@@ -422,6 +438,20 @@ void writeGrid(map_type& hashtable) {
     outfile.close();
 }
 
+#define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
+void checkLast(const char* const file, const int line)
+{
+    cudaError_t const err{cudaGetLastError()};
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA Runtime Error at: " << file << ":" << line
+                  << std::endl;
+        std::cerr << cudaGetErrorString(err) << std::endl;
+        // We don't exit when we encounter CUDA errors in this example.
+        // std::exit(EXIT_FAILURE);
+    }
+}
+
 int main() {
     cuco::static_map<idx4, Cell*> hashtable{
         NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
@@ -451,6 +481,9 @@ int main() {
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
     calcGrad<<<1, 1>>>(view, zipped, hashtable.get_size());
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
     cout << duration.count() << " ms" << endl;
