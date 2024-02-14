@@ -25,6 +25,22 @@
 using namespace std;
 using namespace std::chrono;
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+
+#define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
+void checkLast(const char* const file, const int line)
+{
+    cudaError_t const err{cudaGetLastError()};
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA Runtime Error at: " << file << ":" << line
+                  << std::endl;
+        std::cerr << cudaGetErrorString(err) << std::endl;
+        // We don't exit when we encounter CUDA errors in this example.
+        // std::exit(EXIT_FAILURE);
+    }
+}
+
 // convert from transposed Hilbert index to Hilbert index
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex) {
     int n = 0;
@@ -453,6 +469,9 @@ int main() {
     
     //auto find_ref = view.ref(cuco::find);
     calcGrad<<<1, 1>>>(view, zipped, hashtable.get_size());
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
     cout << duration.count() << " ms" << endl;
