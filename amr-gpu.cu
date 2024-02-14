@@ -161,7 +161,7 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
     hashtable.find(key.begin(), key.end(), value.begin());
     return value[0];
 }
-__device__ void find(map_view_type &hashtable, const idx4 idx_cell, Cell *pCell) {
+__device__ void find(map_view_type hashtable, const idx4 idx_cell, Cell *pCell) {
     cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell);
     pCell = pair->second;
 }
@@ -171,7 +171,7 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
     Cell* pCell = find(hashtable, idx_cell);
     return pCell != empty_pcell_sentinel;
 }
-__device__ void checkIfExists(const idx4 idx_cell, map_view_type &hashtable, bool &res) {
+__device__ void checkIfExists(const idx4 idx_cell, map_view_type hashtable, bool &res) {
     Cell* pCell = nullptr;
     find(hashtable, idx_cell, pCell);
     res = pCell != empty_pcell_sentinel;
@@ -342,7 +342,7 @@ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &i
     Cell* pCell = find(hashtable, idx_neighbor);
     rho_neighbor = pCell->rho * int(!is_border) + rho_boundary * int(is_border);
 }
-__device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_view_type &hashtable) {
+__device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_view_type hashtable) {
     idx4 idx_neighbor;
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
@@ -370,7 +370,7 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
 }
 
 // compute the gradient for one cell
-__device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type &hashtable) {
+__device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type hashtable) {
     bool is_ref[2];
     double dx, rho[3];
     int fd_case;
@@ -386,7 +386,7 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type &has
 }
 
 // compute the gradient
-__global__ void calcGrad(map_view_type &hashtable, auto zipped, size_t hashtable_size) {
+__global__ void calcGrad(map_view_type hashtable, auto zipped, size_t hashtable_size) {
     idx4 idx_cell;
     Cell* pCell = nullptr;
     for (auto it = zipped; it != zipped + hashtable_size; it++) {
@@ -450,6 +450,8 @@ int main() {
     hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+    
+    //auto find_ref = view.ref(cuco::find);
     calcGrad<<<1, 1>>>(view, zipped, hashtable.get_size());
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
