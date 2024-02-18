@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 #include <cooperative_groups.h>
 
 namespace cuco {
-namespace experimental {
 
 template <typename Key,
           typename T,
@@ -45,6 +44,7 @@ __host__ __device__ constexpr static_map_ref<
                                 cuco::empty_value<T> empty_value_sentinel,
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
+                                cuda_thread_scope<Scope>,
                                 StorageRef storage_ref) noexcept
   : impl_{
       cuco::pair{empty_key_sentinel, empty_value_sentinel}, predicate, probing_scheme, storage_ref}
@@ -70,6 +70,7 @@ __host__ __device__ constexpr static_map_ref<
                                 cuco::erased_key<Key> erased_key_sentinel,
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
+                                cuda_thread_scope<Scope>,
                                 StorageRef storage_ref) noexcept
   : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel},
           erased_key_sentinel,
@@ -99,6 +100,65 @@ __host__ __device__ constexpr static_map_ref<Key,
       other) noexcept
   : impl_{std::move(other.impl_)}
 {
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_map_ref<Key,
+                                             T,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::key_equal
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::key_eq()
+  const noexcept
+{
+  return this->impl_.key_eq();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_map_ref<Key,
+                                             T,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::const_iterator
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end()
+  const noexcept
+{
+  return this->impl_.end();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_map_ref<Key,
+                                             T,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::iterator
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end() noexcept
+{
+  return this->impl_.end();
 }
 
 template <typename Key,
@@ -170,12 +230,66 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr Key
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  erased_key_sentinel() const noexcept
+{
+  return impl_.erased_key_sentinel();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename... NewOperators>
 auto static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
   NewOperators...) && noexcept
 {
-  return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
-    std::move(*this));
+  return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
+    std::move(*this)};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename CG, cuda::thread_scope NewScope>
+__device__ constexpr auto
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
+  CG const& tile,
+  window_type* const memory_to_use,
+  cuda_thread_scope<NewScope> scope) const noexcept
+{
+  this->impl_.make_copy(tile, memory_to_use);
+  return static_map_ref<Key, T, NewScope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::empty_value<T>{this->empty_value_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
+    this->key_eq(),
+    this->impl_.probing_scheme(),
+    scope,
+    storage_ref_type{this->window_extent(), memory_to_use}};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename CG>
+__device__ constexpr void
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
+  CG const& tile) noexcept
+{
+  this->impl_.initialize(tile);
 }
 
 namespace detail {
@@ -443,32 +557,6 @@ class operator_impl<
 
  public:
   /**
-   * @brief Returns a const_iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return A const_iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
-  /**
-   * @brief Returns an iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return An iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
-  /**
    * @brief Inserts the given element into the map.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
@@ -650,32 +738,6 @@ class operator_impl<
 
  public:
   /**
-   * @brief Returns a const_iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return A const_iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
-  /**
-   * @brief Returns an iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return An iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
-  /**
    * @brief Finds an element in the map with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
@@ -718,5 +780,4 @@ class operator_impl<
 };
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

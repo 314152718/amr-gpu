@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/storage.cuh>
+#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/atomic>
 
 #include <memory>
 
 namespace cuco {
-namespace experimental {
 
 /**
  * @brief Device non-owning "ref" type that can be used in device code to perform arbitrary
@@ -64,8 +64,12 @@ class static_set_ref
   : public detail::operator_impl<
       Operators,
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  using impl_type =
-    detail::open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  /// Flag indicating whether duplicate keys are allowed or not
+  static constexpr auto allows_duplicates = false;
+
+  /// Implementation type
+  using impl_type = detail::
+    open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
  public:
   using key_type            = Key;                                     ///< Key Type
@@ -82,6 +86,7 @@ class static_set_ref
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
     storage_ref_type::window_size;  ///< Number of elements handled per window
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   /**
    * @brief Constructs static_set_ref.
@@ -89,11 +94,13 @@ class static_set_ref
    * @param empty_key_sentinel Sentinel indicating empty key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -103,12 +110,14 @@ class static_set_ref
    * @param erased_key_sentinel Sentinel indicating erased key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
                                                         cuco::erased_key<Key> erased_key_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -145,6 +154,34 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
   /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept;
+
+  /**
+   * @brief Gets the key comparator.
+   *
+   * @return The comparator used to compare keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept;
+
+  /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept;
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept;
+
+  /**
    * @brief Creates a reference with new operators from the current object.
    *
    * Note that this function uses move semantics and thus invalidates the current object.
@@ -160,6 +197,43 @@ class static_set_ref
    */
   template <typename... NewOperators>
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
+
+  /**
+   * @brief Makes a copy of the current device reference using non-owned memory
+   *
+   * This function is intended to be used to create shared memory copies of small static sets,
+   * although global memory can be used as well.
+   *
+   * @note This function synchronizes the group `tile`.
+   * @note By-default the thread scope of the copy will be the same as the scope of the parent ref.
+   *
+   * @tparam CG The type of the cooperative thread group
+   * @tparam NewScope The thread scope of the newly created device ref
+   *
+   * @param tile The ooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   * @param scope The thread scope of the newly created device ref
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename CG, cuda::thread_scope NewScope = thread_scope>
+  [[nodiscard]] __device__ constexpr auto make_copy(
+    CG const& tile,
+    window_type* const memory_to_use,
+    cuda_thread_scope<NewScope> scope = {}) const noexcept;
+
+  /**
+   * @brief Initializes the set storage using the threads in the group `tile`.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the set
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG const& tile) noexcept;
 
  private:
   impl_type impl_;
@@ -178,7 +252,6 @@ class static_set_ref
   friend class static_set_ref;
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/static_set/static_set_ref.inl>

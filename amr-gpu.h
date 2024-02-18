@@ -119,9 +119,11 @@ void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
 __host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, const bool pos, idx4 idx_neighbor);
 __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
 Cell* find(map_type& hashtable, const idx4& idx_cell);
-__device__ void find(map_view_type hashtable, const idx4 idx_cell, Cell *pCell);
+template <typename Map>
+__device__ void find(Map hashtable, const idx4 idx_cell, Cell *pCell);
 bool checkIfExists(const idx4& idx_cell, map_type &hashtable);
-__device__ void checkIfExists(const idx4 idx_cell, map_view_type hashtable, bool &res);
+template <typename Map>
+__device__ void checkIfExists(const idx4 idx_cell, Map hashtable, bool &res);
 void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable);
 void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
@@ -130,8 +132,11 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable);
 void printHashtableIdx(map_type& hashtable);
 void refineGrid1lvl(map_type& hashtable);
 void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
-__device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_view_type hashtable);
-__device__ void calcGradCell(const idx4 idx_cell, Cell* cell, map_view_type hashtable);
-__global__ void calcGrad(map_view_type hashtable, auto zipped, size_t hashtable_size);
+template <typename Map>
+__device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, Map hashtable);
+template <typename Map>
+__device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable);
+template <typename Map>
+__global__ void calcGrad(Map hashtable, auto zipped, size_t hashtable_size);
 void writeGrid(map_type& hashtable);
 // ------------------------------------------------ //

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@
 #include <type_traits>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 
 /// Three-way insert result enum
@@ -74,12 +73,14 @@ struct window_probing_results {
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
  * @tparam StorageRef Storage ref type
+ * @tparam AllowsDuplicates Flag indicating whether duplicate keys are allowed or not
  */
 template <typename Key,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
-          typename StorageRef>
+          typename StorageRef,
+          bool AllowsDuplicates>
 class open_addressing_ref_impl {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -89,9 +90,14 @@ class open_addressing_ref_impl {
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
   static_assert(
-    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                      ProbingScheme>,
+    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+
+  /// Determines if the container is a key/value or key-only store
+  static constexpr auto has_payload = not std::is_same_v<Key, typename StorageRef::value_type>;
+
+  /// Flag indicating whether duplicate keys are allowed or not
+  static constexpr auto allows_duplicates = AllowsDuplicates;
 
   // TODO: how to re-enable this check?
   // static_assert(is_window_extent_v<typename StorageRef::extent_type>,
@@ -111,10 +117,8 @@ class open_addressing_ref_impl {
 
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
-    storage_ref_type::window_size;  ///< Number of elements handled per window
-  static constexpr auto has_payload =
-    not std::is_same_v<key_type, value_type>;  ///< Determines if the container is a key/value or
-                                               ///< key-only store
+    storage_ref_type::window_size;             ///< Number of elements handled per window
+  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
   /**
    * @brief Constructs open_addressing_ref_impl.
@@ -212,6 +216,16 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Gets the key comparator.
+   *
+   * @return The comparator used to compare keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept
+  {
+    return this->predicate().equal_;
+  }
+
+  /**
    * @brief Gets the probing scheme.
    *
    * @return The probing scheme used for the container
@@ -269,6 +283,65 @@ class open_addressing_ref_impl {
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept { return storage_ref_.end(); }
 
   /**
+   * @brief Makes a copy of the current device reference using non-owned memory.
+   *
+   * This function is intended to be used to create shared memory copies of small static data
+   * structures, although global memory can be used as well.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param g The ooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   */
+  template <typename CG>
+  __device__ constexpr void make_copy(CG const& g, window_type* const memory_to_use) const noexcept
+  {
+    auto const num_windows = static_cast<size_type>(this->window_extent());
+#if defined(CUDA_HAS_CUDA_BARRIER)
+    __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+    if (g.thread_rank() == 0) { init(&barrier, g.size()); }
+    g.sync();
+
+    cuda::memcpy_async(
+      g, memory_to_use, this->storage_ref().data(), sizeof(window_type) * num_windows, barrier);
+
+    barrier.arrive_and_wait();
+#else
+    window_type const* const windows_ptr = this->storage_ref().data();
+    for (size_type i = g.thread_rank(); i < num_windows; i += g.size()) {
+      memory_to_use[i] = windows_ptr[i];
+    }
+    g.sync();
+#endif
+  }
+
+  /**
+   * @brief Initializes the container storage.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the container
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG const& tile) noexcept
+  {
+    auto tid                = tile.thread_rank();
+    auto* const windows_ptr = this->storage_ref().data();
+    while (tid < static_cast<size_type>(this->window_extent())) {
+      auto& window = *(windows_ptr + tid);
+#pragma unroll
+      for (auto& slot : window) {
+        slot = this->empty_slot_sentinel();
+      }
+      tid += tile.size();
+    }
+    tile.sync();
+  }
+
+  /**
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
@@ -292,8 +365,10 @@ class open_addressing_ref_impl {
       for (auto& slot_content : window_slots) {
         auto const eq_res = this->predicate_(this->extract_key(slot_content), key);
 
-        // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) { return false; }
+        if constexpr (not allows_duplicates) {
+          // If the key is already in the container, return false
+          if (eq_res == detail::equal_result::EQUAL) { return false; }
+        }
         if (eq_res == detail::equal_result::EMPTY or
             cuco::detail::bitwise_compare(this->extract_key(slot_content),
                                           this->erased_key_sentinel())) {
@@ -301,9 +376,15 @@ class open_addressing_ref_impl {
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                                  slot_content,
                                  val)) {
+            case insert_result::DUPLICATE: {
+              if constexpr (allows_duplicates) {
+                [[fallthrough]];
+              } else {
+                return false;
+              }
+            }
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
-            case insert_result::DUPLICATE: return false;
           }
         }
       }
@@ -337,8 +418,13 @@ class open_addressing_ref_impl {
           switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
             case detail::equal_result::EMPTY:
               return window_probing_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL:
-              return window_probing_results{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EQUAL: {
+              if constexpr (allows_duplicates) {
+                continue;
+              } else {
+                return window_probing_results{detail::equal_result::EQUAL, i};
+              }
+            }
             default: {
               if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                                 this->erased_key_sentinel())) {
@@ -353,8 +439,10 @@ class open_addressing_ref_impl {
         return window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
-      // If the key is already in the container, return false
-      if (group.any(state == detail::equal_result::EQUAL)) { return false; }
+      if constexpr (not allows_duplicates) {
+        // If the key is already in the container, return false
+        if (group.any(state == detail::equal_result::EQUAL)) { return false; }
+      }
 
       auto const group_contains_available =
         group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
@@ -369,7 +457,13 @@ class open_addressing_ref_impl {
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
-          case insert_result::DUPLICATE: return false;
+          case insert_result::DUPLICATE: {
+            if constexpr (allows_duplicates) {
+              [[fallthrough]];
+            } else {
+              return false;
+            }
+          }
           default: continue;
         }
       } else {
@@ -1206,5 +1300,4 @@ class open_addressing_ref_impl {
 };
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

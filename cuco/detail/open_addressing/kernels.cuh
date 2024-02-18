@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@
 #include <iterator>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
+CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
  * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
@@ -62,12 +62,12 @@ template <int32_t CGSize,
           typename Predicate,
           typename AtomicT,
           typename Ref>
-__global__ void insert_if_n(InputIt first,
-                            cuco::detail::index_type n,
-                            StencilIt stencil,
-                            Predicate pred,
-                            AtomicT* num_successes,
-                            Ref ref)
+CUCO_KERNEL void insert_if_n(InputIt first,
+                             cuco::detail::index_type n,
+                             StencilIt stencil,
+                             Predicate pred,
+                             AtomicT* num_successes,
+                             Ref ref)
 {
   using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -128,7 +128,7 @@ template <int32_t CGSize,
           typename StencilIt,
           typename Predicate,
           typename Ref>
-__global__ void insert_if_n(
+CUCO_KERNEL void insert_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
@@ -163,7 +163,7 @@ __global__ void insert_if_n(
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
-__global__ void erase(InputIt first, cuco::detail::index_type n, Ref ref)
+CUCO_KERNEL void erase(InputIt first, cuco::detail::index_type n, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
@@ -213,12 +213,12 @@ template <int32_t CGSize,
           typename Predicate,
           typename OutputIt,
           typename Ref>
-__global__ void contains_if_n(InputIt first,
-                              cuco::detail::index_type n,
-                              StencilIt stencil,
-                              Predicate pred,
-                              OutputIt output_begin,
-                              Ref ref)
+CUCO_KERNEL void contains_if_n(InputIt first,
+                               cuco::detail::index_type n,
+                               StencilIt stencil,
+                               Predicate pred,
+                               OutputIt output_begin,
+                               Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -268,7 +268,7 @@ __global__ void contains_if_n(InputIt first,
  * @param count Number of filled slots
  */
 template <int32_t BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
-__global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
+CUCO_KERNEL void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 {
   using size_type = typename StorageRef::size_type;
 
@@ -294,9 +294,9 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 }
 
 template <int32_t BlockSize, typename ContainerRef, typename Predicate>
-__global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
-                       ContainerRef container_ref,
-                       Predicate is_filled)
+CUCO_KERNEL void rehash(typename ContainerRef::storage_ref_type storage_ref,
+                        ContainerRef container_ref,
+                        Predicate is_filled)
 {
   namespace cg = cooperative_groups;
 
@@ -341,5 +341,4 @@ __global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
 }
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

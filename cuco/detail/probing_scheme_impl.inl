@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include <cuco/detail/utils.cuh>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 
 /**
@@ -150,11 +149,10 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
     cuco::detail::sanitize_hash<size_type>(hash1_(probe_key) + g.thread_rank()) % upper_bound,
-    static_cast<size_type>((cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) %
-                              (upper_bound.value() / cg_size - 1) +
-                            1) *
-                           cg_size),
+    static_cast<size_type>(
+      (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / cg_size - 1) +
+       1) *
+      cg_size),
     upper_bound};  // TODO use fast_int operator
 }
-}  // namespace experimental
 }  // namespace cuco

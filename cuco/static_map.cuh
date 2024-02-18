@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map_ref.cuh>
 #include <cuco/utility/allocator.hpp>
+#include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
 #include <thrust/functional.h>
@@ -40,7 +41,6 @@
 #include <utility>
 
 namespace cuco {
-namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value pairs with unique keys.
  *
@@ -87,14 +87,13 @@ namespace experimental {
  */
 template <class Key,
           class T,
-          class Extent             = cuco::experimental::extent<std::size_t>,
+          class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme =
-            cuco::experimental::double_hashing<4,  // CG size
-                                               cuco::default_hash_function<Key>>,
-          class Allocator = cuco::cuda_allocator<cuco::pair<Key, T>>,
-          class Storage   = cuco::experimental::storage<1>>
+          class ProbingScheme      = cuco::linear_probing<4,  // CG size
+                                                     cuco::default_hash_function<Key>>,
+          class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
+          class Storage            = cuco::storage<1>>
 class static_map {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -131,16 +130,15 @@ class static_map {
 
   using mapped_type = T;  ///< Payload type
   template <typename... Operators>
-  using ref_type =
-    cuco::experimental::static_map_ref<key_type,
-                                       mapped_type,
-                                       thread_scope,
-                                       key_equal,
-                                       probing_scheme_type,
-                                       storage_ref_type,
-                                       Operators...>;  ///< Non-owning container ref type
+  using ref_type = cuco::static_map_ref<key_type,
+                                        mapped_type,
+                                        thread_scope,
+                                        key_equal,
+                                        probing_scheme_type,
+                                        storage_ref_type,
+                                        Operators...>;  ///< Non-owning container ref type
 
-  static_map(static_map const&) = delete;
+  static_map(static_map const&)            = delete;
   static_map& operator=(static_map const&) = delete;
 
   static_map(static_map&&) = default;  ///< Move constructor
@@ -171,6 +169,8 @@ class static_map {
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -179,6 +179,8 @@ class static_map {
                        empty_value<T> empty_value_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -210,6 +212,8 @@ class static_map {
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -219,6 +223,8 @@ class static_map {
                        empty_value<T> empty_value_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -242,6 +248,8 @@ class static_map {
    * @param erased_key_sentinel The reserved key to denote erased slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -251,6 +259,8 @@ class static_map {
                        erased_key<Key> erased_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -729,10 +739,11 @@ class static_map {
   std::unique_ptr<impl_type> impl_;   ///< Static map implementation
   mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
 };
-}  // namespace experimental
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
+
+namespace legacy {
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
@@ -855,7 +866,7 @@ class static_map {
   static_map(static_map&&)      = delete;
 
   static_map& operator=(static_map const&) = delete;
-  static_map& operator=(static_map&&) = delete;
+  static_map& operator=(static_map&&)      = delete;
 
   /**
    * @brief Indicates if concurrent insert/find is supported for the key/value types.
@@ -2114,6 +2125,7 @@ class static_map {
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
+}  // namespace legacy
 }  // namespace cuco
 
 #include <cuco/detail/static_map.inl>

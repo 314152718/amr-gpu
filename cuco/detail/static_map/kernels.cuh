@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@
 #include <cooperative_groups.h>
 
 namespace cuco {
-namespace experimental {
 namespace static_map_ns {
 namespace detail {
+CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
  * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent to
@@ -49,7 +49,7 @@ namespace detail {
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
-__global__ void insert_or_assign(InputIt first, cuco::detail::index_type n, Ref ref)
+CUCO_KERNEL void insert_or_assign(InputIt first, cuco::detail::index_type n, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
@@ -88,7 +88,7 @@ __global__ void insert_or_assign(InputIt first, cuco::detail::index_type n, Ref 
  * @param ref Non-owning map device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
-__global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
+CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -129,5 +129,4 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 
 }  // namespace detail
 }  // namespace static_map_ns
-}  // namespace experimental
 }  // namespace cuco
