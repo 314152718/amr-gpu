@@ -41,6 +41,13 @@ void checkLast(const char* const file, const int line)
     }
 }
 
+// on host
+// purpose is to store size as well
+__host__ struct SizeMap {
+    cuco::static_map<idx4, Cell*> hashtable;
+    size_t numCells;
+};
+
 // convert from transposed Hilbert index to Hilbert index
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex) {
     int n = 0;
@@ -191,7 +198,7 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
 template <typename Map>
 __device__ void checkIfExists(const idx4 idx_cell, Map hashtable, bool &res) {
     Cell* pCell = nullptr;
-    find(hashtable, idx_cell, pCell);
+    find(hashtable.hashtable, idx_cell, pCell);
     res = pCell != empty_pcell_sentinel;
 }
 
@@ -408,6 +415,7 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable) {
 // compute the gradient
 template <typename Map>
 __global__ void calcGrad(Map hashtable, auto zipped, size_t hashtable_size) {
+    Hashtable hashtable = Hashtable{};
     idx4 idx_cell;
     Cell* pCell = nullptr;
     for (auto it = zipped; it != zipped + hashtable_size; it++) {
@@ -447,6 +455,7 @@ int main() {
     cuco::static_map<idx4, Cell*> hashtable{
         NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
     };
+    SizeMap sizeTable = SizeMap{hashtable, NMAX};
 
     cout << "Making base grid" << endl;
     makeBaseGrid(grid, hashtable);
