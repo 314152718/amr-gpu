@@ -41,13 +41,6 @@ void checkLast(const char* const file, const int line)
     }
 }
 
-// on host
-// purpose is to store size as well
-__host__ struct SizeMap {
-    cuco::static_map<idx4, Cell*> hashtable;
-    size_t numCells;
-};
-
 // convert from transposed Hilbert index to Hilbert index
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex) {
     int n = 0;
@@ -181,12 +174,12 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
     thrust::device_vector<idx4> key;
     thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
-    hashtable.find(key.begin(), key.end(), value.begin());
+    hashtable.find(key.begin(), key.end(), value.begin());//, ramses_hash{}, idx4_equals{});
     return value[0];
 }
 template <typename Map>
 __device__ void find(Map hashtable, const idx4 idx_cell, Cell *pCell) {
-    cuco::static_map<idx4, Cell *>::device_view::const_iterator pair = hashtable.find(idx_cell);
+    auto pair = hashtable.find(idx_cell);
     pCell = pair->second;
 }
 
@@ -198,17 +191,18 @@ bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
 template <typename Map>
 __device__ void checkIfExists(const idx4 idx_cell, Map hashtable, bool &res) {
     Cell* pCell = nullptr;
-    find(hashtable.hashtable, idx_cell, pCell);
+    find(hashtable, idx_cell, pCell);
     res = pCell != empty_pcell_sentinel;
 }
 
 // initialize the base level grid
-void makeBaseGrid(Cell (&grid)[NMAX], map_type &hashtable) {
+void makeBaseGrid(Cell (&grid)[NMAX], SizeMap& sizeTable) {
     idx4 idx_cell;
     for (int L = 0; L <= LBASE; L++) {
         for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
-            setGridCell(idx_cell, hindex, L == LBASE, hashtable);
+            setGridCell(idx_cell, hindex, L == LBASE, sizeTable.hashtable);
+            sizeTable.numCells++;
         }
     }
 };
@@ -253,19 +247,19 @@ void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
 }
 
 // refine a grid cell
-void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
+void refineGridCell(const idx4 idx_cell, SizeMap& sizeTable) {
     int hindex;
     getHindex(idx_cell, hindex);
-    Cell *pCell = find(hashtable, idx_cell);
+    Cell *pCell = find(sizeTable.hashtable, idx_cell);
     if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
     if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
     if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
     // make this cell a non-leaf
     pCell->flag_leaf = 0;
-    idx4 idx_child(idx_cell.idx3, idx_cell.L + 1);
+    idx4 idx_child(idx_cell.idx3, uint16(idx_cell.L + 1));
     for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
     // and create 2^NDIM leaf children
-    setChildrenHelper(idx_child, 0, hashtable);
+    setChildrenHelper(idx_child, 0, sizeTable.hashtable);
     // refine neighbors if needed
     idx4 idx_neighbor, idx_parent;
     for (short dir = 0; dir < NDIM; dir++) {
@@ -274,30 +268,30 @@ void refineGridCell(const idx4 idx_cell, map_type &hashtable) {
             checkIfBorder(idx_cell, dir, pos, is_border);
             if (is_border) continue;
             getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
-            if (checkIfExists(idx_neighbor, hashtable)) continue;
+            if (checkIfExists(idx_neighbor, sizeTable.hashtable)) continue;
             // we assume that L is at most different by 1
             getParentIdx(idx_cell, idx_parent);
-            if (!checkIfExists(idx_parent, hashtable))
+            if (!checkIfExists(idx_parent, sizeTable.hashtable))
                 throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
-            if (!checkIfExists(idx_neighbor, hashtable)) continue; // parent is at border
-            refineGridCell(idx_neighbor, hashtable);
+            if (!checkIfExists(idx_neighbor, sizeTable.hashtable)) continue; // parent is at border
+            refineGridCell(idx_neighbor, sizeTable);
         }
     }
 }
 
 // print hash table index
-void printHashtableIdx(map_type& hashtable) {
-    size_t numCells = hashtable.get_size();
+void printHashtableIdx(SizeMap& sizeTable) {
+    size_t numCells = sizeTable.numCells;
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
-    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+    sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+    sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
 
-    thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(hashtable.get_size());
-    for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
+    thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(numCells);
+    for (auto it = zipped; it != zipped + numCells; it++) {
         entries[it - zipped] = *it;
     }
     idx4 idx_cell;
@@ -315,17 +309,17 @@ void printHashtableIdx(map_type& hashtable) {
 }
 
 // refine the grid by one level
-void refineGrid1lvl(map_type& hashtable) {
-    size_t numCells = hashtable.get_size();
+void refineGrid1lvl(SizeMap& sizeTable) {
+    size_t numCells = sizeTable.numCells;
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
-    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+    sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+    sizeTable. hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
     // copy to an actual copy of the keys, that won't change as we refine
-    thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(hashtable.get_size());
-    for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
+    thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(numCells);
+    for (auto it = zipped; it != zipped + numCells; it++) {
         entries[it - zipped] = *it;
     }
     idx4 idx_cell;
@@ -336,7 +330,7 @@ void refineGrid1lvl(map_type& hashtable) {
         idx_cell = t.get<0>();
         pCell = t.get<1>();
         if (refCrit(pCell->rho) && pCell->flag_leaf) {
-            refineGridCell(idx_cell, hashtable);
+            refineGridCell(idx_cell, sizeTable);
         }
     }
 }
@@ -414,11 +408,10 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable) {
 
 // compute the gradient
 template <typename Map>
-__global__ void calcGrad(Map hashtable, auto zipped, size_t hashtable_size) {
-    Hashtable hashtable = Hashtable{};
+__global__ void calcGrad(Map hashtable, auto zipped, size_t numCells) {
     idx4 idx_cell;
     Cell* pCell = nullptr;
-    for (auto it = zipped; it != zipped + hashtable_size; it++) {
+    for (auto it = zipped; it != zipped + numCells; it++) {
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
         pCell = t.get<1>();
@@ -426,21 +419,21 @@ __global__ void calcGrad(Map hashtable, auto zipped, size_t hashtable_size) {
     }
 }
 
-void writeGrid(map_type& hashtable) {
+void writeGrid(SizeMap& sizeTable) {
     // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
     ofstream outfile;
     outfile.open(outfile_name);
     idx4 idx_cell;
     Cell* pCell = nullptr;
     outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
-    size_t numCells = hashtable.get_size();
+    size_t numCells = sizeTable.numCells;
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
-    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+    sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+    sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
-    for (auto it = zipped; it != zipped + hashtable.get_size(); it++) {
+    for (auto it = zipped; it != zipped + numCells; it++) {
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
         pCell = t.get<1>();
@@ -455,17 +448,17 @@ int main() {
     cuco::static_map<idx4, Cell*> hashtable{
         NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
     };
-    SizeMap sizeTable = SizeMap{hashtable, NMAX};
+    SizeMap sizeTable = SizeMap{hashtable, 0};
 
     cout << "Making base grid" << endl;
-    makeBaseGrid(grid, hashtable);
+    makeBaseGrid(grid, sizeTable);
     const int num_ref = LMAX - LBASE;
     cout << "Refining grid levels" << endl;
     for (short i = 0; i < num_ref; i++) {
-       refineGrid1lvl(hashtable);
+       refineGrid1lvl(sizeTable);
     }
     cout << "Finished refining grid levels" << endl;
-    printHashtableIdx(hashtable);
+    printHashtableIdx(sizeTable);
 
     cout << "Calculating gradients" << endl;
     auto start = high_resolution_clock::now();
@@ -473,21 +466,21 @@ int main() {
     // run as kernel on GPU
     //map_view_type view = hashtable.get_device_view();
     // get zipped values before kicking off kernels
-    size_t numCells = hashtable.get_size();
+    size_t numCells = sizeTable.numCells;
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
-    hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-    hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+    sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
+    sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
     
-    auto hashtable_find_ref = hashtable.ref(cuco::find);
-    calcGrad<<<1, 1>>>(hashtable_find_ref, zipped, hashtable.get_size());
+    auto hashtable_find_ref = sizeTable.hashtable.ref(cuco::find);
+    calcGrad<<<1, 1>>>(hashtable_find_ref, zipped, numCells);
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
     cout << duration.count() << " ms" << endl;
-    writeGrid(hashtable);
+    writeGrid(sizeTable);
 }
