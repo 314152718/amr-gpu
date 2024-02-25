@@ -174,7 +174,7 @@ Cell* find(map_type& hashtable, const idx4& idx_cell) {
     thrust::device_vector<idx4> key;
     thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
-    hashtable.find(key.begin(), key.end(), value.begin());//, ramses_hash{}, idx4_equals{});
+    hashtable.find(key.begin(), key.end(), value.begin()); //, ramses_hash{}, idx4_equals{}
     return value[0];
 }
 template <typename Map>
@@ -201,7 +201,7 @@ void makeBaseGrid(Cell (&grid)[NMAX], SizeMap& sizeTable) {
     for (int L = 0; L <= LBASE; L++) {
         for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
-            setGridCell(idx_cell, hindex, L == LBASE, sizeTable.hashtable);
+            setGridCell(idx_cell, hindex, L == LBASE, sizeTable.hashtable); // cells have flag_leaf == 1 at L == LBASE == 3
             sizeTable.numCells++;
         }
     }
@@ -288,7 +288,7 @@ void printHashtableIdx(SizeMap& sizeTable) {
     sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
     sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
-        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin())); //, ramses_hash{}, idx4_equals{}
 
     thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(numCells);
     for (auto it = zipped; it != zipped + numCells; it++) {
@@ -314,9 +314,9 @@ void refineGrid1lvl(SizeMap& sizeTable) {
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
     sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-    sizeTable. hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
+    sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
-        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin())); //, ramses_hash{}, idx4_equals{})
     // copy to an actual copy of the keys, that won't change as we refine
     thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(numCells);
     for (auto it = zipped; it != zipped + numCells; it++) {
@@ -432,7 +432,7 @@ void writeGrid(SizeMap& sizeTable) {
     sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
     sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
-        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin())); //, ramses_hash{}, idx4_equals{}
     for (auto it = zipped; it != zipped + numCells; it++) {
         thrust::tuple<idx4, Cell*> t = *it;
         idx_cell = t.get<0>();
@@ -445,10 +445,20 @@ void writeGrid(SizeMap& sizeTable) {
 }
 
 int main() {
-    cuco::static_map<idx4, Cell*> hashtable{
-        NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
-    };
-    SizeMap sizeTable = SizeMap{hashtable, 0};
+    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NMAX>{},
+                                    cuco::empty_key{empty_idx4_sentinel},
+                                    cuco::empty_value{empty_pcell_sentinel},
+                                    idx4_equals{},
+                                    cuco::linear_probing<1, ramses_hash>{}};
+
+    // want to insert with insert_ref
+    // add a variable for number of keys instead of struct
+    // maybe print out keys in a loop? (count example)
+
+    //cuco::static_map<idx4, Cell*> hashtable{ //, cuda::thread_scope_device, idx4_equals{}, ramses_hash{}
+    //    NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
+    //};
+    auto sizeTable = SizeMap{hashtable, 0};
 
     cout << "Making base grid" << endl;
     makeBaseGrid(grid, sizeTable);
@@ -472,10 +482,11 @@ int main() {
     sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
     sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
     auto zipped =
-        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin()));
+        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin())); //, ramses_hash{}, idx4_equals{}
     
     auto hashtable_find_ref = sizeTable.hashtable.ref(cuco::find);
     calcGrad<<<1, 1>>>(hashtable_find_ref, zipped, numCells);
+
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
 

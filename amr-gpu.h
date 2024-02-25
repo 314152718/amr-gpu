@@ -35,6 +35,7 @@ const __device__ double FD_KERNEL[4][4] = {
     {-4., -5., 9., 15.},
     {-1., 0., 1., 2.}
 };
+const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
 const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
 const double sigma = 0.001; // std of Gaussian density field
@@ -68,7 +69,7 @@ ostream& operator<<(ostream &os, idx4 const &idx_cell) {
     return os;
 }
 
-// custom key equal callable
+// custom key equals callable
 struct idx4_equals {
     template <typename key_type>
     __host__ __device__ bool operator()(key_type const& lhs, key_type const& rhs) {
@@ -103,8 +104,11 @@ struct Cell {
 
 // on host
 // purpose is to store size as well
+typedef cuco::static_map<idx4, Cell *, cuco::extent<std::size_t, 2097162UL>, cuda::std::__4::__detail::thread_scope_device, idx4_equals, cuco::linear_probing<1, ramses_hash>, cuco::cuda_allocator<cuco::pair<idx4, Cell *>>
+
+template <typename Map>
 __host__ struct SizeMap {
-    cuco::static_map<idx4, Cell*> &hashtable;
+    Map &hashtable; //, KeyEqual = idx4_equals{}, ProbingScheme = ramses_hash{}
     size_t numCells;
 
     //__host__ __device__ SizeMap(cuco::static_map<idx4, Cell*> hashtable_init, size_t numCells_init) : 

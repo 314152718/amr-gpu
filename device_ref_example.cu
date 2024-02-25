@@ -132,7 +132,7 @@
  
    // Compute capacity based on a 50% load factor
    auto constexpr load_factor = 0.5;
-   std::size_t const capacity = std::ceil(num_keys / load_factor);
+   std::size_t const capacity = std::ceil(num_keys / load_factor); // maybe multiply instead of divide
  
    // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
    auto map = cuco::static_map{capacity,
