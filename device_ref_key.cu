@@ -13,14 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-/*EXAMPLE POINTER CAST
-
-thrust::device_vector<int> dv(10);
-int * dv_ptr = thrust::raw_pointer_cast(dv.data());
-kernel<<<bl,tpb>>>(dv_ptr)
-
-*/
  
  #define _USE_MATH_DEFINES
 
@@ -53,6 +45,7 @@ kernel<<<bl,tpb>>>(dv_ptr)
  const int32_t NMAX = 2097152 + 10; // maximum number of cells
  const double EPS = 0.000001;
  const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
+ 
  typedef unsigned short int uint16;
  const uint16 uint16NaN = numeric_limits<uint16>::quiet_NaN(); 
  const double doubleNaN = numeric_limits<double>::quiet_NaN(); 
@@ -198,7 +191,6 @@ void checkLast(const char* const file, const int line)
  __global__ void increment_values(Map map_ref, KeyIter key_begin, size_t num_keys)
  {
    auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-   printf("increment_values: start\n");
    while (tid < num_keys) {
      // If the key exists in the map, find returns an iterator to the specified key. Otherwise it
      // returns map.end()
@@ -206,33 +198,12 @@ void checkLast(const char* const file, const int line)
      if (found != map_ref.end()) {
        // If the key exists, atomically increment the associated value
        auto ref =
-         cuda::atomic_ref<typename Map::mapped_type, cuda::thread_scope_device>{found->second};
+         cuda::atomic_ref<typename Map::mapped_type, cuda::thread_scope_device>{found->second}; // found -> second is values
        ref.fetch_add(1, cuda::memory_order_relaxed);
      }
      tid += gridDim.x * blockDim.x;
    }
-   printf("increment_values: end\n");
  }
-
- template <typename ValueIter>
- __global__ void insert_vector_pointers(ValueIter insert_values_begin, 
-                                        int* pointer_underl_values_begin, 
-                                        size_t num_keys, int* num_inserted) {
-    auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-    pointer_underl_values_begin += tid;
-
-    std::size_t counter = 0;
-    while (tid < num_keys) {
-        if (insert_values_begin[tid] = pointer_underl_values_begin) {
-            counter++;
-            printf("%d %d\n\n", tid, *insert_values_begin[tid]);
-        }
-        pointer_underl_values_begin += gridDim.x * blockDim.x;
-        tid += gridDim.x * blockDim.x;
-    }
-    atomicAdd(num_inserted, counter);
- }
-
  
  int main(void)
  { 
@@ -240,44 +211,23 @@ void checkLast(const char* const file, const int line)
    // that they never occur in your input data.
    auto const empty_idx4_sentinel = idx4{uint16NaN, uint16NaN, uint16NaN, uint16NaN};
    Cell* empty_pcell_sentinel = nullptr;
-   int* empty_pvalue_sentinel = nullptr;
    Cell empty_cell_sentinel = Cell{doubleNaN, doubleNaN, doubleNaN, doubleNaN, int32_tNaN};
 
+   using Value = int;
+   Value constexpr empty_value_sentinel = -1;
+ 
    // Number of key/value pairs to be inserted
    size_t constexpr num_keys = 100;
-   int constexpr empty_value_sentinel = -1;
-   
-   auto constexpr block_size = 256;
-   auto const grid_size      = (num_keys + block_size - 1) / block_size;
- 
  
    // Create a sequence of keys and values {{0,0}, {1,1}, ... {i,i}}
    // device can't allocate on device
    thrust::device_vector<idx4> insert_keys(num_keys);
-   thrust::device_vector<int>  underlying_values(num_keys); // Cell
-   thrust::device_vector<int*> insert_values(num_keys); // int* -> vector[1] of value
    for (uint16 i = 0; i < num_keys; i++) {
-        insert_keys[i] = idx4{i, i+1, i+2, i+3};
-        underlying_values[i] = i*2;
-
-        //thrust::device_vector<int> value(1);
-        //value[0] = underlying_values[i];
-        //thrust::device_vector<int>::iterator value_iter = value.begin();
-        //insert_values[i] = thrust::raw_pointer_cast(value.data());
+    insert_keys[i] = idx4{i, i+1, i+2, i+3};
    }
-
-   // Allocate storage for count of number of inserted keys
-   thrust::device_vector<int> num_inserted(1);
-
-   insert_vector_pointers<<<grid_size, block_size>>>(insert_values.begin(), 
-                                                     thrust::raw_pointer_cast(underlying_values.data()),
-                                                     num_keys,
-                                                     num_inserted.data().get());
-    cudaDeviceSynchronize();
-    CHECK_LAST_CUDA_ERROR();
-
-   std::cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
-
+   thrust::device_vector<Value> insert_values(num_keys);
+   thrust::sequence(insert_values.begin(), insert_values.end(), 0);
+ 
    // Compute capacity based on a 100% load factor
    auto constexpr load_factor = 1.0;
    size_t const capacity = NMAX;
@@ -285,7 +235,7 @@ void checkLast(const char* const file, const int line)
    // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
    auto map = cuco::static_map{capacity,
                               cuco::empty_key{empty_idx4_sentinel},
-                              cuco::empty_value{empty_pvalue_sentinel}, // empty_pcell_sentinel
+                              cuco::empty_value{empty_value_sentinel},
                               thrust::equal_to<idx4>{},
                               cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
                               //idx4_equals{},
@@ -298,9 +248,11 @@ void checkLast(const char* const file, const int line)
    // Predicate will only insert even keys
    // auto is_even = [] __device__(auto key) { return (key % 2) == 0; };
  
-   // reset num_inserted
-   num_inserted[0] = 0;
+   // Allocate storage for count of number of inserted keys
+   thrust::device_vector<int> num_inserted(1);
  
+   auto constexpr block_size = 256;
+   auto const grid_size      = (num_keys + block_size - 1) / block_size;
    insert<<<grid_size, block_size>>>(insert_ref,
                                     insert_keys.begin(),
                                     insert_values.begin(),
@@ -316,7 +268,7 @@ void checkLast(const char* const file, const int line)
    // kernel
    auto find_ref = map.ref(cuco::find);
  
-   /*increment_values<<<grid_size, block_size>>>(find_ref, insert_keys.begin(), num_keys);
+   increment_values<<<grid_size, block_size>>>(find_ref, insert_keys.begin(), num_keys);
 
    cudaDeviceSynchronize();
    CHECK_LAST_CUDA_ERROR();
@@ -325,7 +277,7 @@ void checkLast(const char* const file, const int line)
  
    // Retrieve contents of all the non-empty slots in the map
    thrust::device_vector<idx4> contained_keys(num_inserted[0]);
-   thrust::device_vector<Cell> contained_values(num_inserted[0]); // Cell
+   thrust::device_vector<Value> contained_values(num_inserted[0]);
    map.retrieve_all(contained_keys.begin(), contained_values.begin());
  
    auto tuple_iter =
@@ -335,10 +287,11 @@ void checkLast(const char* const file, const int line)
    cout << "Starting thrust::all_of\n";
    auto result = thrust::all_of(
      thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
-       return abs(thrust::get<0>(tuple).idx3[0]%10 - thrust::get<1>(tuple)->rho) < EPS; // thrust::get<1>(tuple).rho
+       printf("%d %d\n", thrust::get<0>(tuple).idx3[0], thrust::get<1>(tuple));
+       return thrust::get<0>(tuple).idx3[0] + 1 == thrust::get<1>(tuple);
      });
  
-   if (result) { cout << "Success! Target values are properly incremented.\n"; }*/
+   if (result) { cout << "Success! Target values are properly incremented.\n"; }
  
    return 0;
  }
