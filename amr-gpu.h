@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <chrono>
+#include <limits>
 
 // gpu includes
 #include "cuco/static_map.cuh"
@@ -40,28 +41,50 @@ const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
 const double sigma = 0.001; // std of Gaussian density field
 const double EPS = 0.000001;
-const string outfile_name = "grid-gpu.csv";
+
 typedef unsigned short int uint16;
+auto const uint16_nan = numeric_limits<uint16>::quiet_NaN(); // size_t = uint16
+auto const double_nan = numeric_limits<double>::quiet_NaN();
+auto const int32t_nan = numeric_limits<int32_t>::quiet_NaN();
 
 // --------------- STRUCTS ------------ //
 // custom key type
 struct idx4 {
     uint16 idx3[NDIM], L;
 
-    __host__ __device__ idx4() {}
+    __host__ __device__ idx4() = default;
     __host__ __device__ idx4(uint16 i_init, uint16 j_init, uint16 k_init, uint16 L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
     __host__ __device__ idx4(const uint16 ijk_init[NDIM], uint16 L_init) : idx3{ijk_init[0], ijk_init[1], ijk_init[2]}, L{L_init} {}
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
-    __device__ bool operator==(idx4 const& other) const {
+    __host__ __device__ bool operator==(idx4 const& other) const {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
     // __device__: identifier std basic string is undefined in device code
     string str() const {
         return "["+to_string(idx3[0])+", "+to_string(idx3[1])+", "+to_string(idx3[2])+"](L="+to_string(L)+")";
     }
+
+    /* // bitwise comparable errors from this:
+    __host__ __device__ idx4 (const idx4 &other) { 
+        L = other.L;
+        for (short i = 0; i < NDIM; i++) {
+            idx3[i] = other.idx3[i];
+        }
+    }*/
 };
+
+namespace std
+{
+    template<>
+    struct hash<idx4> {
+        __host__ __device__ size_t operator()(const idx4& idx_cell) const noexcept {
+            size_t hashval = HASH[0] * idx_cell.idx3[0] + HASH[1] * idx_cell.idx3[1] + HASH[2] * idx_cell.idx3[2] + HASH[3] * idx_cell.L;
+            return hashval;
+        };
+    };
+}
 
 // custom key output stream representation
 ostream& operator<<(ostream &os, idx4 const &idx_cell) {
@@ -70,6 +93,7 @@ ostream& operator<<(ostream &os, idx4 const &idx_cell) {
 }
 
 // custom key equals callable
+
 struct idx4_equals {
     template <typename key_type>
     __host__ __device__ bool operator()(key_type const& lhs, key_type const& rhs) {
@@ -80,7 +104,7 @@ struct idx4_equals {
 // custom key type hash
 struct ramses_hash {
     template <typename key_type>
-    __device__ uint32_t operator()(key_type k) {
+    __host__ __device__ uint32_t operator()(key_type k) {
         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
         return hashval;
     };
@@ -104,10 +128,10 @@ struct Cell {
 
 // on host
 // purpose is to store size as well
-typedef cuco::static_map<idx4, Cell *, cuco::extent<std::size_t, 2097162UL>, cuda::std::__4::__detail::thread_scope_device, idx4_equals, cuco::linear_probing<1, ramses_hash>, cuco::cuda_allocator<cuco::pair<idx4, Cell *>>
+//typedef cuco::static_map<idx4, Cell*, cuco::extent<std::size_t, 2097162UL>, cuda::std::__4::__detail::thread_scope_device, idx4_equals, cuco::linear_probing<1, ramses_hash>, cuco::cuda_allocator<cuco::pair<idx4, Cell *>>
 
 template <typename Map>
-__host__ struct SizeMap {
+struct SizeMap {
     Map &hashtable; //, KeyEqual = idx4_equals{}, ProbingScheme = ramses_hash{}
     size_t numCells;
 
@@ -125,12 +149,13 @@ ostream& operator<<(ostream &os, Cell const &cell) {
 
 // typedefs
 typedef cuco::static_map<idx4, Cell*> map_type;
+typedef unordered_map<idx4, Cell> host_map; //, ramses_hash<idx4>, idx4_equals<idx4>
 //typedef cuco::static_map<idx4, Cell*>::device_view map_view_type;
 
 // globals
-Cell grid[NMAX];
-auto const empty_idx4_sentinel = idx4{-1, -1, -1, -1};
-__host__ __device__ Cell* empty_pcell_sentinel = nullptr;
+auto const empty_idx4_sentinel = idx4{uint16_nan, uint16_nan, uint16_nan, uint16_nan};
+auto const empty_cell_sentinel = Cell{double_nan, double_nan, double_nan, double_nan, int32t_nan};
+Cell* empty_pcell_sentinel = nullptr;
 
 // --------------- FUNCTION DECLARATIONS ------------ //
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
@@ -145,16 +170,20 @@ __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, cons
 Cell* find(map_type& hashtable, const idx4& idx_cell);
 template <typename Map>
 __device__ void find(Map hashtable, const idx4 idx_cell, Cell *pCell);
-bool checkIfExists(const idx4& idx_cell, map_type &hashtable);
+bool keyExists(const idx4& idx_cell, map_type &hashtable);
+bool keyExists(const idx4& idx_cell, host_map &host_table);
 template <typename Map>
-__device__ void checkIfExists(const idx4 idx_cell, Map hashtable, bool &res);
-void makeBaseGrid(Cell (&grid)[NMAX], SizeMap& sizeTable);
-void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable);
+__device__ void keyExists(const idx4 idx_cell, Map hashtable, bool &res);
+void makeBaseGrid(Cell (&host_grid)[NMAX], host_map &host_table);
+void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
+                 host_map &host_table);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
-void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable);
-void refineGridCell(const idx4 idx_cell, SizeMap& sizeTable);
-void printHashtableIdx(SizeMap& sizeTable);
-void refineGrid1lvl(SizeMap& sizeTable);
+void setGridChildren(Cell (&host_grid)[NMAX], idx4 idx_cell, short i, host_map &host_table);
+void refineGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, host_map &host_table);
+template <typename Map>
+void printHashtableIdx(SizeMap<Map> &sizeTable);
+void printHashtableIdx(host_map &host_table);
+void refineGrid1lvl(Cell (&host_grid)[NMAX], host_map &host_table);
 void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
 template <typename Map>
 __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, Map hashtable);
@@ -162,5 +191,7 @@ template <typename Map>
 __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable);
 template <typename Map>
 __global__ void calcGrad(Map hashtable, auto zipped, size_t numCells);
-void writeGrid(SizeMap& sizeTable);
+template <typename Map>
+void writeGrid(SizeMap<Map>& sizeTable);
+void writeGrid(host_map &host_table);
 // ------------------------------------------------ //

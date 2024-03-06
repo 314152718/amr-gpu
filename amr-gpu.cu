@@ -170,13 +170,13 @@ __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, cons
 
 // find a cell by 4-index in the hashtable
 // GPU version: use map_view_type's find function
-Cell* find(map_type& hashtable, const idx4& idx_cell) {
+/*Cell* find(map_type& hashtable, const idx4& idx_cell) {
     thrust::device_vector<idx4> key;
     thrust::device_vector<Cell*> value(1);
     key.push_back(idx_cell);
     hashtable.find(key.begin(), key.end(), value.begin()); //, ramses_hash{}, idx4_equals{}
     return value[0];
-}
+}*/
 template <typename Map>
 __device__ void find(Map hashtable, const idx4 idx_cell, Cell *pCell) {
     auto pair = hashtable.find(idx_cell);
@@ -184,104 +184,33 @@ __device__ void find(Map hashtable, const idx4 idx_cell, Cell *pCell) {
 }
 
 // check if a cell exists by 4-index
-bool checkIfExists(const idx4& idx_cell, map_type &hashtable) {
+/*bool keyExists(const idx4& idx_cell, map_type &hashtable) {
     Cell* pCell = find(hashtable, idx_cell);
     return pCell != empty_pcell_sentinel;
+}*/
+bool keyExists(const idx4& idx_cell, host_map &host_table) {
+    return host_table.find(idx_cell) != host_table.end();
 }
 template <typename Map>
-__device__ void checkIfExists(const idx4 idx_cell, Map hashtable, bool &res) {
+__device__ void keyExists(const idx4 idx_cell, Map hashtable, bool &res) {
     Cell* pCell = nullptr;
     find(hashtable, idx_cell, pCell);
     res = pCell != empty_pcell_sentinel;
 }
 
-// initialize the base level grid
-void makeBaseGrid(Cell (&grid)[NMAX], SizeMap& sizeTable) {
-    idx4 idx_cell;
-    for (int L = 0; L <= LBASE; L++) {
-        for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
-            getHindexInv(hindex, L, idx_cell);
-            setGridCell(idx_cell, hindex, L == LBASE, sizeTable.hashtable); // cells have flag_leaf == 1 at L == LBASE == 3
-            sizeTable.numCells++;
-        }
-    }
-};
-
-// set a grid cell in the grid array and the hash table
-void setGridCell(const idx4 idx_cell, const int hindex, int32_t flag_leaf, map_type &hashtable) {
-    if (checkIfExists(idx_cell, hashtable)) throw runtime_error("setting existing cell");
-    int offset;
-    double dx, coord[3];
-    offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
-    dx = 1 / pow(2, idx_cell.L);
-    for (int i = 0; i < NDIM; i++)
-        coord[i] = idx_cell.idx3[i] * dx + dx / 2;
-    grid[offset + hindex].rho = rhoFunc(coord, sigma);
-    grid[offset + hindex].flag_leaf = flag_leaf;
-    if (offset + hindex >= NMAX) throw runtime_error("offset () + hindex >= N_cell_max");
-    insert(hashtable, idx_cell, &grid[offset + hindex]);
-}
-
-
 // insert a cell into the hashtable
-void insert(map_type &hashtable, const idx4& key, Cell* const value) {
+/*void insert(map_type &hashtable, const idx4& key, Cell* const value) {
     thrust::device_vector<idx4> insert_keys;
     thrust::device_vector<Cell*> insert_values;
     insert_keys.push_back(key);
     insert_values.push_back(value);
     auto zipped = thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
     hashtable.insert(zipped, zipped + insert_keys.size());
-}
-
-// set child cells in the grid array and hash table
-void setChildrenHelper(idx4 idx_cell, short i, map_type &hashtable) {
-    if (i == NDIM) {
-        int hindex;
-        getHindex(idx_cell, hindex);
-        setGridCell(idx_cell, hindex, 1, hashtable);
-        return;
-    }
-    setChildrenHelper(idx_cell, i+1, hashtable);
-    idx_cell.idx3[i]++;
-    setChildrenHelper(idx_cell, i+1, hashtable);
-}
-
-// refine a grid cell
-void refineGridCell(const idx4 idx_cell, SizeMap& sizeTable) {
-    int hindex;
-    getHindex(idx_cell, hindex);
-    Cell *pCell = find(sizeTable.hashtable, idx_cell);
-    if (pCell == empty_pcell_sentinel) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
-    if (!pCell->flag_leaf) throw runtime_error("trying to refine non-leaf");
-    if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
-    // make this cell a non-leaf
-    pCell->flag_leaf = 0;
-    idx4 idx_child(idx_cell.idx3, uint16(idx_cell.L + 1));
-    for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
-    // and create 2^NDIM leaf children
-    setChildrenHelper(idx_child, 0, sizeTable.hashtable);
-    // refine neighbors if needed
-    idx4 idx_neighbor, idx_parent;
-    for (short dir = 0; dir < NDIM; dir++) {
-        for (short pos = 0; pos < 2; pos++) {
-            bool is_border;
-            checkIfBorder(idx_cell, dir, pos, is_border);
-            if (is_border) continue;
-            getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
-            if (checkIfExists(idx_neighbor, sizeTable.hashtable)) continue;
-            // we assume that L is at most different by 1
-            getParentIdx(idx_cell, idx_parent);
-            if (!checkIfExists(idx_parent, sizeTable.hashtable))
-                throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
-            getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
-            if (!checkIfExists(idx_neighbor, sizeTable.hashtable)) continue; // parent is at border
-            refineGridCell(idx_neighbor, sizeTable);
-        }
-    }
-}
+}*/
 
 // print hash table index
-void printHashtableIdx(SizeMap& sizeTable) {
+template <typename Map>
+void printHashtableIdx(SizeMap<Map>& sizeTable) {
     size_t numCells = sizeTable.numCells;
     thrust::device_vector<idx4> retrieved_keys(numCells);
     thrust::device_vector<Cell*> retrieved_values(numCells);
@@ -308,36 +237,18 @@ void printHashtableIdx(SizeMap& sizeTable) {
     cout << endl;
 }
 
-// refine the grid by one level
-void refineGrid1lvl(SizeMap& sizeTable) {
-    size_t numCells = sizeTable.numCells;
-    thrust::device_vector<idx4> retrieved_keys(numCells);
-    thrust::device_vector<Cell*> retrieved_values(numCells);
-    sizeTable.hashtable.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());               // doesn't populate values for some reason
-    sizeTable.hashtable.find(retrieved_keys.begin(), retrieved_keys.end(), retrieved_values.begin()); // this will populate values
-    auto zipped =
-        thrust::make_zip_iterator(thrust::make_tuple(retrieved_keys.begin(), retrieved_values.begin())); //, ramses_hash{}, idx4_equals{})
-    // copy to an actual copy of the keys, that won't change as we refine
-    thrust::device_vector<thrust::tuple<idx4, Cell*>> entries(numCells);
-    for (auto it = zipped; it != zipped + numCells; it++) {
-        entries[it - zipped] = *it;
+void printHashtableIdx(host_map &host_table) {
+    cout << "CELLS\n";
+    for (auto kv : host_table) {
+        if (kv.first.idx3[0] == 25 && kv.first.idx3[1] == 32)
+            cout << kv.first << ' ' << kv.second.rho << ' ';
     }
-    idx4 idx_cell;
-    Cell* pCell = nullptr;
-
-    for (auto entry : entries) { // entry is on device
-        thrust::tuple<idx4, Cell*> t = entry; // t is on host
-        idx_cell = t.get<0>();
-        pCell = t.get<1>();
-        if (refCrit(pCell->rho) && pCell->flag_leaf) {
-            refineGridCell(idx_cell, sizeTable);
-        }
-    }
+    cout << endl;
 }
 
 // get information about the neighbor cell necessary for computing the gradient
 // GPU VERISON: get information about the neighbor cell necessary for computing the gradient
-void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable) {
+/*void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable) {
     idx4 idx_neighbor;
     int idx1_parent_neighbor;
     bool is_border, is_notref;
@@ -346,7 +257,7 @@ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &i
     // compute the index of the neighbor on the same level
     getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
-    is_notref = !checkIfExists(idx_neighbor, hashtable) && !is_border;
+    is_notref = !keyExists(idx_neighbor, hashtable) && !is_border;
     is_ref = !is_notref && !is_border;
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
     // if the neighbor is not refined, set the neighbor index to the index of the parent cell's neighbor
@@ -360,7 +271,7 @@ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &i
     // if the cell is a border cell, use the boundary condition
     Cell* pCell = find(hashtable, idx_neighbor);
     rho_neighbor = pCell->rho * int(!is_border) + rho_boundary * int(is_border);
-}
+}*/
 template <typename Map>
 __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, Map hashtable) {
     idx4 idx_neighbor;
@@ -371,7 +282,7 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     // compute the index of the neighbor on the same level
     getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
-    checkIfExists(idx_neighbor, hashtable, exists); 
+    keyExists(idx_neighbor, hashtable, exists); 
     is_notref = !exists && !is_border;
     is_ref = !is_notref && !is_border;
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
@@ -419,7 +330,8 @@ __global__ void calcGrad(Map hashtable, auto zipped, size_t numCells) {
     }
 }
 
-void writeGrid(SizeMap& sizeTable) {
+template <typename Map>
+void writeGrid(SizeMap<Map>& sizeTable) {
     // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
     ofstream outfile;
     outfile.open(outfile_name);
@@ -444,33 +356,142 @@ void writeGrid(SizeMap& sizeTable) {
     outfile.close();
 }
 
-int main() {
+void writeGrid(host_map &host_table) {
+    // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
+    ofstream outfile;
+    outfile.open(outfile_name);
+    outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
+    for (auto kv : host_table) {
+        idx4 idx_cell = kv.first;
+        Cell cell = kv.second;
+        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
+                << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
+                << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
+    }
+    outfile.close();
+}
+
+// initialize the base level grid
+void makeBaseGrid(Cell (&host_grid)[NMAX], host_map &host_table) {
+    idx4 idx_cell;
+    for (int L = 0; L <= LBASE; L++) {
+        for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+            getHindexInv(hindex, L, idx_cell);
+            setGridCell(host_grid, idx_cell, hindex, L == LBASE, host_table); // cells have flag_leaf == 1 at L == LBASE == 3
+        }
+    }
+};
+
+// set a grid cell in the grid array and the hash table
+void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
+                 host_map &host_table) {
+    if (keyExists(idx_cell, host_table)) throw runtime_error("setting existing cell");
+    int offset;
+    double dx, coord[3];
+    offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
+    dx = 1 / pow(2, idx_cell.L);
+    for (int i = 0; i < NDIM; i++)
+        coord[i] = idx_cell.idx3[i] * dx + dx / 2;
+    host_grid[offset + hindex].rho = rhoFunc(coord, sigma);
+    host_grid[offset + hindex].flag_leaf = flag_leaf;
+    if (offset + hindex >= NMAX) throw runtime_error("offset () + hindex >= N_cell_max");
+    
+    host_table[idx_cell] = host_grid[offset + hindex];
+}
+
+// refine the grid by one level
+void refineGrid1lvl(Cell (&host_grid)[NMAX], host_map &host_table) {
+    for (auto kv : host_table) {
+        if (refCrit(kv.second.rho) && kv.second.flag_leaf) {
+            refineGridCell(host_grid, kv.first, host_table);
+        }
+    }
+}
+
+// set child cells in the grid array and hash table
+void setGridChildren(Cell (&host_grid)[NMAX], idx4 idx_cell, short i, 
+                       host_map &host_table) {
+    if (i == NDIM) {
+        int hindex;
+        getHindex(idx_cell, hindex);
+        setGridCell(host_grid, idx_cell, hindex, 1, host_table);
+        return;
+    }
+    setGridChildren(host_grid, idx_cell, i+1, host_table);
+    idx_cell.idx3[i]++;
+    setGridChildren(host_grid, idx_cell, i+1, host_table);
+}
+
+// refine a grid cell
+void refineGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, host_map &host_table) {
+    int hindex;
+    getHindex(idx_cell, hindex);
+    if (!keyExists(idx_cell, host_table)) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
+    Cell cell = host_table[idx_cell];
+    if (cell.flag_leaf) throw runtime_error("trying to refine non-leaf");
+    if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
+    // make this cell a non-leaf
+    cell.flag_leaf = 0;
+    idx4 idx_child(idx_cell.idx3, size_t(idx_cell.L + 1));
+    for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
+    // and create 2^NDIM leaf children
+    setGridChildren(host_grid, idx_child, 0, host_table);
+    // refine neighbors if needed
+    idx4 idx_neighbor, idx_parent;
+    for (short dir = 0; dir < NDIM; dir++) {
+        for (short pos = 0; pos < 2; pos++) {
+            bool is_border;
+            checkIfBorder(idx_cell, dir, pos, is_border);
+            if (is_border) continue;
+            getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+            if (keyExists(idx_neighbor, host_table)) continue;
+            // we assume that L is at most different by 1
+            getParentIdx(idx_cell, idx_parent);
+            if (!keyExists(idx_parent, host_table))
+                throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
+            getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
+            if (!keyExists(idx_neighbor, host_table)) continue; // parent is at border
+            refineGridCell(host_grid, idx_neighbor, host_table);
+        }
+    }
+}
+
+void test_unordered_map() {
+    unordered_map<idx4, Cell> map;
+    map[idx4{1, 2, 3, 4}] = Cell{2.0, 4.0, 6.0, 8.0, 0};
+    printf("%d\n", map.find(idx4{1, 2, 3, 4}) != map.end());
+}
+
+void test_makeBaseGrid() {
+    auto constexpr block_size = 256;
+    auto const grid_size      = (NMAX + block_size - 1) / block_size;
+
+    Cell host_grid[NMAX];
+    host_map host_table;
+    
+    cout << "Making base grid" << endl;
+    
+    makeBaseGrid(host_grid, host_table);
+
+    /*const int num_ref = LMAX - LBASE;
+    cout << "Refining grid levels" << endl;
+    for (short i = 0; i < num_ref; i++) {
+       refineGrid1lvl(host_grid, host_table);
+    }
+    cout << "Finished refining grid levels" << endl;*/
+    writeGrid(host_table);
+    
+
     auto hashtable = cuco::static_map{cuco::extent<std::size_t, NMAX>{},
                                     cuco::empty_key{empty_idx4_sentinel},
                                     cuco::empty_value{empty_pcell_sentinel},
                                     idx4_equals{},
                                     cuco::linear_probing<1, ramses_hash>{}};
 
-    // want to insert with insert_ref
-    // add a variable for number of keys instead of struct
-    // maybe print out keys in a loop? (count example)
+    thrust::device_vector<idx4> keys(host_table.size());
+    thrust::device_vector<Cell> underl_values(host_table.size());
 
-    //cuco::static_map<idx4, Cell*> hashtable{ //, cuda::thread_scope_device, idx4_equals{}, ramses_hash{}
-    //    NMAX, cuco::empty_key{empty_idx4_sentinel}, cuco::empty_value{empty_pcell_sentinel}
-    //};
-    auto sizeTable = SizeMap{hashtable, 0};
-
-    cout << "Making base grid" << endl;
-    makeBaseGrid(grid, sizeTable);
-    const int num_ref = LMAX - LBASE;
-    cout << "Refining grid levels" << endl;
-    for (short i = 0; i < num_ref; i++) {
-       refineGrid1lvl(sizeTable);
-    }
-    cout << "Finished refining grid levels" << endl;
-    printHashtableIdx(sizeTable);
-
-    cout << "Calculating gradients" << endl;
+    /*cout << "Calculating gradients" << endl;
     auto start = high_resolution_clock::now();
 
     // run as kernel on GPU
@@ -493,5 +514,9 @@ int main() {
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
     cout << duration.count() << " ms" << endl;
-    writeGrid(sizeTable);
+    writeGrid(sizeTable);*/
+}
+
+int main() {
+    test_makeBaseGrid();
 }

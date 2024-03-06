@@ -256,14 +256,12 @@ void checkLast(const char* const file, const int line)
    thrust::device_vector<idx4> insert_keys(num_keys);
    thrust::device_vector<int>  underlying_values(num_keys); // Cell
    thrust::device_vector<int*> insert_values(num_keys); // int* -> vector[1] of value
+   //int ptr = thrust::raw_pointer_cast(value.data());
    for (uint16 i = 0; i < num_keys; i++) {
         insert_keys[i] = idx4{i, i+1, i+2, i+3};
         underlying_values[i] = i*2;
-
-        //thrust::device_vector<int> value(1);
-        //value[0] = underlying_values[i];
-        //thrust::device_vector<int>::iterator value_iter = value.begin();
-        //insert_values[i] = thrust::raw_pointer_cast(value.data());
+        //insert_values[i] = ptr;
+        //ptr++;
    }
 
    // Allocate storage for count of number of inserted keys
@@ -321,11 +319,11 @@ void checkLast(const char* const file, const int line)
    cudaDeviceSynchronize();
    CHECK_LAST_CUDA_ERROR();
 
-   cout << "Passed increment_values\n";
+   cout << "Passed increment_values\n";*/
  
    // Retrieve contents of all the non-empty slots in the map
    thrust::device_vector<idx4> contained_keys(num_inserted[0]);
-   thrust::device_vector<Cell> contained_values(num_inserted[0]); // Cell
+   thrust::device_vector<int*> contained_values(num_inserted[0]); // Cell
    map.retrieve_all(contained_keys.begin(), contained_values.begin());
  
    auto tuple_iter =
@@ -335,10 +333,10 @@ void checkLast(const char* const file, const int line)
    cout << "Starting thrust::all_of\n";
    auto result = thrust::all_of(
      thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
-       return abs(thrust::get<0>(tuple).idx3[0]%10 - thrust::get<1>(tuple)->rho) < EPS; // thrust::get<1>(tuple).rho
+       return thrust::get<0>(tuple).idx3[0]*2 == *thrust::get<1>(tuple); // thrust::get<1>(tuple).rho
      });
  
-   if (result) { cout << "Success! Target values are properly incremented.\n"; }*/
+   if (result) { cout << "Success! Target values are properly retrieved.\n"; } //incremented
  
    return 0;
  }
