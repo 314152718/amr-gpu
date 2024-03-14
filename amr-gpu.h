@@ -26,7 +26,7 @@ using namespace std;
 using namespace std::chrono;
 
 // constants
-const int32_t LBASE = 3; // base AMR level
+const int32_t LBASE = 2; // 3; base AMR level
 const int32_t LMAX = 6; // max AMR level
 const int32_t NDIM = 3; // number of dimensions
 const int32_t NMAX = 2097152 + 10; // maximum number of cells
@@ -36,11 +36,12 @@ const __device__ double FD_KERNEL[4][4] = {
     {-4., -5., 9., 15.},
     {-1., 0., 1., 2.}
 };
-const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
+const __host__ __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
 const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
-const double sigma = 0.001; // std of Gaussian density field
+const double sigma = 0.01; // std of Gaussian density field
 const double EPS = 0.000001;
+const double STEP_EPS = 0.00001;
 
 typedef unsigned short int uint16;
 auto const uint16_nan = numeric_limits<uint16>::quiet_NaN(); // size_t = uint16
@@ -62,7 +63,14 @@ struct idx4 {
         return idx3[0] == other.idx3[0] && idx3[1] == other.idx3[1] && idx3[2] == other.idx3[2] && L == other.L;
     }
     // __device__: identifier std basic string is undefined in device code
-    string str() const {
+    __host__ __device__ void print() const {
+        printf("[%d, %d, %d](L=%d)",idx3[0], idx3[1], idx3[2], L);
+    }
+    __host__ __device__ void println() const {
+        print();
+        printf("\n");
+    }
+    __host__ string str() const {
         return "["+to_string(idx3[0])+", "+to_string(idx3[1])+", "+to_string(idx3[2])+"](L="+to_string(L)+")";
     }
 
@@ -124,6 +132,17 @@ struct Cell {
         return abs(rho - other.rho) < EPS && abs(rho_grad[0] - other.rho_grad[0]) < EPS
             && abs(rho_grad[1] - other.rho_grad[1]) < EPS && abs(rho_grad[2] - other.rho_grad[2]) < EPS;
     }
+    __host__ __device__ void print() const {
+        printf("[%.2f, %.2f, %.2f, %.2f](Leaf=%d)", rho, rho_grad[0], rho_grad[1], rho_grad[2], flag_leaf);
+    }
+    __host__ __device__ void println() const {
+        print();
+        printf("\n");
+    }
+    __host__ string str() const {
+        return "["+to_string(rho)+", "+to_string(rho_grad[0])+", "+to_string(rho_grad[1])+", "+to_string(rho_grad[2])+
+                "](Leaf="+to_string(flag_leaf)+")";
+    }
 };
 
 // on host
@@ -162,10 +181,11 @@ void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
 void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
 void getHindex(idx4 idx_cell, int& hindex);
 void getHindexInv(int hindex, int L, idx4& idx_cell);
-double rhoFunc(const double coord[NDIM], const double sigma);
+//double rhoFunc(const double coordMid[NDIM], const double cellSide, const double sigma);
+double rhoFunc(const double coordMid[NDIM], const double sigma);
 bool refCrit(double rho);
 void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
-__host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, const bool pos, idx4 idx_neighbor);
+__host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, const bool pos, idx4 &idx_neighbor);
 __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
 Cell* find(map_type& hashtable, const idx4& idx_cell);
 template <typename Map>
@@ -191,7 +211,16 @@ template <typename Map>
 __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable);
 template <typename Map>
 __global__ void calcGrad(Map hashtable, auto zipped, size_t numCells);
-template <typename Map>
-void writeGrid(SizeMap<Map>& sizeTable);
-void writeGrid(host_map &host_table);
+void writeGrid(host_map &host_table, string filename);
+
+template <typename Map, typename KeyIter, typename ValueIter>
+__global__ void insert(Map map_ref,
+                       KeyIter key_begin,
+                       ValueIter value_begin,
+                       size_t num_keys,
+                       int* num_inserted);
+template <typename ValueIter>
+__global__ void insert_vector_pointers(ValueIter insert_values_begin, 
+                                       Cell* pointer_underl_values_begin, 
+                                       size_t num_keys, int* num_inserted);
 // ------------------------------------------------ //
