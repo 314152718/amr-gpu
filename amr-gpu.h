@@ -26,8 +26,9 @@ using namespace std;
 using namespace std::chrono;
 
 // constants
-const int32_t LBASE = 2; // 3; base AMR level
+int32_t LBASE = 2; // 3; base AMR level
 const int32_t LMAX = 6; // max AMR level
+
 const int32_t NDIM = 3; // number of dimensions
 const int32_t NMAX = 2097152 + 10; // maximum number of cells
 const __device__ double FD_KERNEL[4][4] = {
@@ -43,6 +44,10 @@ const double sigma = 0.01; // std of Gaussian density field
 const double EPS = 0.000001;
 const double STEP_EPS = 0.00001;
 
+// GPU consts
+auto constexpr BLOCK_SIZE = 256;
+auto const GRID_SIZE      = (NMAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
 typedef unsigned short int uint16;
 auto const uint16_nan = numeric_limits<uint16>::quiet_NaN(); // size_t = uint16
 auto const double_nan = numeric_limits<double>::quiet_NaN();
@@ -51,11 +56,12 @@ auto const int32t_nan = numeric_limits<int32_t>::quiet_NaN();
 // --------------- STRUCTS ------------ //
 // custom key type
 struct idx4 {
-    uint16 idx3[NDIM], L;
+    uint16 idx3[NDIM];
+    short int L;
 
     __host__ __device__ idx4() = default;
-    __host__ __device__ idx4(uint16 i_init, uint16 j_init, uint16 k_init, uint16 L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
-    __host__ __device__ idx4(const uint16 ijk_init[NDIM], uint16 L_init) : idx3{ijk_init[0], ijk_init[1], ijk_init[2]}, L{L_init} {}
+    __host__ __device__ idx4(uint16 i_init, uint16 j_init, uint16 k_init, short int L_init) : idx3{i_init, j_init, k_init}, L{L_init} {}
+    __host__ __device__ idx4(const uint16 ijk_init[NDIM], short int L_init) : idx3{ijk_init[0], ijk_init[1], ijk_init[2]}, L{L_init} {}
 
     // Device equality operator is mandatory due to libcudacxx bug:
     // https://github.com/NVIDIA/libcudacxx/issues/223
@@ -172,7 +178,7 @@ typedef unordered_map<idx4, Cell> host_map; //, ramses_hash<idx4>, idx4_equals<i
 //typedef cuco::static_map<idx4, Cell*>::device_view map_view_type;
 
 // globals
-auto const empty_idx4_sentinel = idx4{uint16_nan, uint16_nan, uint16_nan, uint16_nan};
+auto const empty_idx4_sentinel = idx4{0, 0, 0, -1}; // works same as with uint16_nan: cannot use 0, 0, 0, -1 idx4
 auto const empty_cell_sentinel = Cell{double_nan, double_nan, double_nan, double_nan, int32t_nan};
 Cell* empty_pcell_sentinel = nullptr;
 
@@ -181,8 +187,7 @@ void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
 void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
 void getHindex(idx4 idx_cell, int& hindex);
 void getHindexInv(int hindex, int L, idx4& idx_cell);
-//double rhoFunc(const double coordMid[NDIM], const double cellSide, const double sigma);
-double rhoFunc(const double coordMid[NDIM], const double sigma);
+double rhoFunc(const double coord[NDIM], const double sigma);
 bool refCrit(double rho);
 void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
 __host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, const bool pos, idx4 &idx_neighbor);
@@ -219,8 +224,8 @@ __global__ void insert(Map map_ref,
                        ValueIter value_begin,
                        size_t num_keys,
                        int* num_inserted);
-template <typename ValueIter>
+template <typename ValueIter, typename UnderlValueIter>
 __global__ void insert_vector_pointers(ValueIter insert_values_begin, 
-                                       Cell* pointer_underl_values_begin, 
+                                       UnderlValueIter pointer_underl_values_begin, 
                                        size_t num_keys, int* num_inserted);
 // ------------------------------------------------ //

@@ -137,18 +137,23 @@ void getHindexInv(int hindex, int L, idx4& idx_cell) {
 }
 
 // multi-variate Gaussian distribution
-/*double rhoFunc(const double coordMid[NDIM], const double cellSide, const double sigma) {
-    int n = round((cellSide - STEP_EPS)/STEP_EPS);
-    double eps = (cellSide - STEP_EPS)/n;
+/*double rhoFunc(const double coordMid[NDIM], const double cellSide, const double sigma) { // change back
+    //int n = round(cellSide / STEP_EPS); // 100 000
+    //double eps = cellSide / n;
+    //printf("n = %d\n", n);
+    int n = 100;
+    double eps = cellSide / n;
+    double pow_n_NDIM = pow(n, NDIM);
 
     double coord[NDIM], coordEnd[NDIM], coordStart[NDIM];
     for (int i = 0; i < NDIM; i++) {
         coordStart[i] = coordMid[i] - cellSide/2.0 + eps/2.0; // center of little cell
         coordEnd[i]   = coordMid[i] + cellSide/2.0 - eps/2.0;
+        coord[i] = coordStart[i];
     }
 
     double res = 0.0;
-    for (int i = 0; i < pow(NDIM, n) + 1; i++) {
+    for (int i = 0; i < pow_n_NDIM; i++) {
         double rsq = 0;
         for (short j = 0; j < NDIM; j++) {
             rsq += pow(coord[j] - 0.5, 2);
@@ -156,7 +161,7 @@ void getHindexInv(int hindex, int L, idx4& idx_cell) {
         double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
         res += rho;
 
-        if (i == pow(NDIM, n)) {
+        if (i == pow_n_NDIM-1) {
             for (int k = 0; k < NDIM; k++) {
                 if (!(abs(coord[k] - coordEnd[k]) < STEP_EPS/10.0)) throw runtime_error("did not reach the upper right corner");
             }
@@ -168,13 +173,13 @@ void getHindexInv(int hindex, int L, idx4& idx_cell) {
             if (abs(coord[idx] - coordEnd[idx]) < STEP_EPS/10.0) {
                 coord[idx] = coordStart[idx];
                 idx++;
-            } else
-                throw runtime_error("impossible: went out of the upper right corner");
+                if (idx == NDIM) throw runtime_error("impossible: went out of the upper right corner");
+            } else break;
         }
         coord[idx] += eps;
     }
     
-    return res / pow(NDIM, n);
+    return res / pow_n_NDIM;
 }*/
 double rhoFunc(const double coord[NDIM], const double sigma) {
     double rsq = 0;
@@ -391,15 +396,10 @@ void writeGrid(host_map &host_table, string filename) {
 
 // initialize the base level grid
 void makeBaseGrid(Cell (&host_grid)[NMAX], host_map &host_table) {
-    cout << "HELLO0 makeBaseGrid\n";
-    printf("HELLO makeBaseGrid\n");
     idx4 idx_cell;
-    printf("HELLO2 makeBaseGrid\n");
     for (int L = 0; L <= LBASE; L++) {
         for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
-            printf("ENTERING getHindexInv\n");
             getHindexInv(hindex, L, idx_cell);
-            printf("ENTERING setGridCell\n");
             setGridCell(host_grid, idx_cell, hindex, L == LBASE, host_table); // cells have flag_leaf == 1 at L == LBASE == 3
         }
     }
@@ -417,8 +417,8 @@ void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex,
     for (int i = 0; i < NDIM; i++) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
-    idx_cell.println();
-    host_grid[offset + hindex].rho = rhoFunc(coord, sigma); // , dx
+    host_grid[offset + hindex].rho = rhoFunc(coord, sigma);
+
     host_grid[offset + hindex].flag_leaf = flag_leaf;
     if (offset + hindex >= NMAX) throw runtime_error("offset () + hindex >= N_cell_max");
     
@@ -486,9 +486,9 @@ void refineGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, host_map &host
     }
 }
 
-template <typename ValueIter>
+template <typename ValueIter, typename UnderlValueIter>
 __global__ void insert_vector_pointers(ValueIter insert_values_begin, 
-                                       Cell* pointer_underl_values_begin, 
+                                       UnderlValueIter pointer_underl_values_begin, 
                                        size_t num_keys, int* num_inserted) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
     pointer_underl_values_begin += tid;
@@ -520,20 +520,9 @@ __global__ void insert(Map map_ref,
         idx4 idx_cell = t.get<0>();
         Cell *pCell = t.get<1>();
 
+        // this is ok because all threads go into the if
         if (map_ref.insert(cuco::pair{key_begin[tid], value_begin[tid]})) {
             ++counter;  // Count number of successfully inserted keys
-            if (idx_cell == idx4{0, 0, 0, 0}) {
-                printf("INSERTING: ");
-            }
-        } else {
-            if (idx_cell == idx4{0, 0, 0, 0}) {
-                printf("CANNOT INSERT: ");
-            }
-        }
-        if (idx_cell == idx4{0, 0, 0, 0}) {
-            idx_cell.print();
-            printf(" ");
-            pCell->println();
         }
 
         tid += gridDim.x * blockDim.x;
@@ -588,8 +577,6 @@ void test_makeBaseGrid() {
     
 
     // hashtable insert values from host_grid
-    auto constexpr block_size = 256;
-    auto const grid_size      = (NMAX + block_size - 1) / block_size;
 
     thrust::device_vector<idx4> insert_keys(host_table.size());
     thrust::device_vector<Cell> underl_values(host_table.size());
@@ -603,7 +590,7 @@ void test_makeBaseGrid() {
     }
 
     thrust::device_vector<int> num_inserted(1);
-    insert_vector_pointers<<<grid_size, block_size>>>(insert_values.begin(), 
+    insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
                                                       thrust::raw_pointer_cast(underl_values.data()),
                                                       host_table.size(),
                                                       num_inserted.data().get());
@@ -623,7 +610,7 @@ void test_makeBaseGrid() {
     
     // reset num_inserted
     num_inserted[0] = 0;
-    insert<<<grid_size, block_size>>>(insert_ref,
+    insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
                                       insert_keys.begin(),
                                       insert_values.begin(),
                                       host_table.size(),
@@ -638,14 +625,6 @@ void test_makeBaseGrid() {
     thrust::device_vector<idx4> contained_keys(num_inserted[0]);
     thrust::device_vector<Cell*> contained_values(num_inserted[0]);
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
-
-    //printf("\n\ninsert_keys\n");
-
-    //printHashtable<<<1, 1>>>(insert_keys.begin(), insert_values.begin(), num_inserted[0]);
-
-    //cudaDeviceSynchronize();
-    //CHECK_LAST_CUDA_ERROR();
-    //printf("\n\ncontained_keys\n");
 
     printHashtable<<<1, 1>>>(contained_keys.begin(), hashtable.ref(cuco::find), num_inserted[0]);
 
@@ -697,6 +676,82 @@ void test_makeBaseGrid() {
     writeGrid(sizeTable);*/
 }
 
+void test_GPU_map() {
+    LBASE = 0; // override const
+
+    thrust::device_vector<idx4> insert_keys(1);
+    thrust::device_vector<Cell> underl_values(1);
+    thrust::device_vector<Cell*> insert_values(1);
+
+    insert_keys[0] = idx4(0, 0, 0, 0);
+    underl_values[0] = Cell(1000.00, 0.00, 0.00, 0.00, 1);
+
+    thrust::device_vector<int> num_inserted(1);
+    insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
+                                                      thrust::raw_pointer_cast(underl_values.data()),
+                                                      1,
+                                                      num_inserted.data().get());
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
+    cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
+
+    
+    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NMAX>{},
+                                      cuco::empty_key{empty_idx4_sentinel},
+                                      cuco::empty_value{empty_pcell_sentinel},
+                                      thrust::equal_to<idx4>{},
+                                      cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
+    auto insert_ref = hashtable.ref(cuco::insert);
+
+    
+    // reset num_inserted
+    num_inserted[0] = 0;
+    insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
+                                      insert_keys.begin(),
+                                      insert_values.begin(),
+                                      1,
+                                      num_inserted.data().get());
+
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+    
+    std::cout << "Number of keys inserted: " << num_inserted[0] << std::endl;
+
+
+    thrust::device_vector<idx4> contained_keys(num_inserted[0]);
+    thrust::device_vector<Cell*> contained_values(num_inserted[0]);
+    hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
+
+    printHashtable<<<1, 1>>>(contained_keys.begin(), hashtable.ref(cuco::find), num_inserted[0]);
+
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
+    // compare inserted kv
+    
+    auto tuple_iter =
+        thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(),    insert_values.begin(), 
+                                                     contained_keys.begin(), contained_values.begin()));
+    // Iterate over all slot contents and verify that `slot.key + 1 == slot.value` is always true.
+
+    cout << "Starting thrust::all_of\n";
+    auto result = thrust::all_of(
+        thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
+        return thrust::get<0>(tuple) == thrust::get<2>(tuple) && *thrust::get<1>(tuple) == *thrust::get<3>(tuple); // thrust::get<1>(tuple).rho
+    });
+
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+    
+    if (result) { cout << "Success! Target values are properly retrieved.\n"; } //incremented
+    else { cout << "Failed at comparison\n"; } //incremented
+}
+
 int main() {
-    test_makeBaseGrid();
+    try {
+        test_makeBaseGrid();
+    } catch  (const runtime_error& error) {
+        printf(error.what());
+    }
 }
