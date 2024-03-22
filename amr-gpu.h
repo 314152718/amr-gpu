@@ -45,7 +45,7 @@ const double EPS = 0.000001;
 const double STEP_EPS = 0.00001;
 
 // GPU consts
-auto constexpr BLOCK_SIZE = 256;
+auto constexpr BLOCK_SIZE = 256; //2^8
 auto const GRID_SIZE      = (NMAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
 typedef unsigned short int uint16;
@@ -56,7 +56,7 @@ auto const int32t_nan = numeric_limits<int32_t>::quiet_NaN();
 // --------------- STRUCTS ------------ //
 // custom key type
 struct idx4 {
-    uint16 idx3[NDIM];
+    uint16 idx3[NDIM]; 
     short int L;
 
     __host__ __device__ idx4() = default;
@@ -180,7 +180,7 @@ typedef unordered_map<idx4, Cell> host_map; //, ramses_hash<idx4>, idx4_equals<i
 // globals
 auto const empty_idx4_sentinel = idx4{0, 0, 0, -1}; // works same as with uint16_nan: cannot use 0, 0, 0, -1 idx4
 auto const empty_cell_sentinel = Cell{double_nan, double_nan, double_nan, double_nan, int32t_nan};
-Cell* empty_pcell_sentinel = nullptr;
+__host__ __device__ Cell* empty_pcell_sentinel = nullptr;
 
 // --------------- FUNCTION DECLARATIONS ------------ //
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
@@ -189,16 +189,10 @@ void getHindex(idx4 idx_cell, int& hindex);
 void getHindexInv(int hindex, int L, idx4& idx_cell);
 double rhoFunc(const double coord[NDIM], const double sigma);
 bool refCrit(double rho);
-void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent);
-__host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, const bool pos, idx4 &idx_neighbor);
 __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
-Cell* find(map_type& hashtable, const idx4& idx_cell);
-template <typename Map>
-__device__ void find(Map hashtable, const idx4 idx_cell, Cell *pCell);
-bool keyExists(const idx4& idx_cell, map_type &hashtable);
 bool keyExists(const idx4& idx_cell, host_map &host_table);
 template <typename Map>
-__device__ void keyExists(const idx4 idx_cell, Map hashtable, bool &res);
+__device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res);
 void makeBaseGrid(Cell (&host_grid)[NMAX], host_map &host_table);
 void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
                  host_map &host_table);
@@ -212,10 +206,13 @@ void refineGrid1lvl(Cell (&host_grid)[NMAX], host_map &host_table);
 void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
 template <typename Map>
 __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, Map hashtable);
+// __device__ are not kernels, not callable from host
 template <typename Map>
 __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable);
-template <typename Map>
-__global__ void calcGrad(Map hashtable, auto zipped, size_t numCells);
+template <typename Map, typename KeyIter>
+__global__ void calcGrad(Map hashtable_ref, KeyIter contained_keys, size_t num_keys);
+template <typename KeyIter, typename ValueIter>
+void writeGrid(KeyIter keys_iter, ValueIter underl_values_iter, size_t num_keys, string filename);
 void writeGrid(host_map &host_table, string filename);
 
 template <typename Map, typename KeyIter, typename ValueIter>
