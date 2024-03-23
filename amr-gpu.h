@@ -45,7 +45,7 @@ const double EPS = 0.000001;
 const double STEP_EPS = 0.00001;
 
 // GPU consts
-auto constexpr BLOCK_SIZE = 256; //2^8
+auto constexpr BLOCK_SIZE = 256; //32*n
 auto const GRID_SIZE      = (NMAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
 typedef unsigned short int uint16;

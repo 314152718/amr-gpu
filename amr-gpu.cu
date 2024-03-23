@@ -220,6 +220,7 @@ __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, cons
 bool keyExists(const idx4& idx_cell, host_map &host_table) {
     return host_table.find(idx_cell) != host_table.end();
 }
+// cannot return a value on the __global__ kernel, but can on __device__
 template <typename Map>
 __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res) {
     res = hashtable_ref.find(idx_cell) != hashtable_ref.end();
