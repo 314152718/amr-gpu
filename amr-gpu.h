@@ -191,10 +191,10 @@ __host__ __device__ Cell* empty_pcell_sentinel = nullptr;
 
 // --------------- FUNCTION DECLARATIONS ------------ //
 void checkLast(const char* const file, const int line);
-void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
-void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
-void getHindex(idx4 idx_cell, int &hindex);
-void getHindexInv(int hindex, int L, idx4& idx_cell);
+void transposeToHilbert(const int X[NDIM], const int L, long int &hindex);
+void hilbertToTranspose(const long int hindex, const int L, int (&X)[NDIM]);
+void getHindex(idx4 idx_cell, long int &hindex);
+void getHindexInv(long int hindex, int L, idx4& idx_cell);
 double rhoFunc(const double coord[NDIM], const double sigma);
 bool refCrit(double rho);
 __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
@@ -203,7 +203,7 @@ template <typename Map>
 __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res);
 // "Cell *host_grid" instead of "Cell (&host_grid)[NCELL_MAX]" did not work
 void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table);
-void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
+void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
                  host_map &host_table);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
 void setGridChildren(Cell (&host_grid)[NCELL_MAX], idx4 idx_cell, short i, host_map &host_table);

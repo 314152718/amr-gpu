@@ -44,7 +44,7 @@ void checkLast(const char* const file, const int line)
 }
 
 // convert from transposed Hilbert index to Hilbert index
-void transposeToHilbert(const int X[NDIM], const short int L, int &hindex) {
+void transposeToHilbert(const int X[NDIM], const short int L, long int &hindex) {
     int n = 0;
     hindex = 0;
     for (short i = 0; i < NDIM; ++i) {
@@ -56,8 +56,8 @@ void transposeToHilbert(const int X[NDIM], const short int L, int &hindex) {
 }
 
 // convert from Hilbert index to transposed Hilbert index
-void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]) {
-    int h = hindex;
+void hilbertToTranspose(const long int hindex, const int L, int (&X)[NDIM]) {
+    long int h = hindex;
     for (short i = 0; i < NDIM; ++i) X[i] = 0;
     for (short i = 0; i < NDIM * L; ++i) {
         short a = (NDIM - (i % NDIM) - 1);
@@ -67,7 +67,7 @@ void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]) {
 }
 
 // compute the Hilbert index for a given 4-idx (i, j, k, L)
-void getHindex(idx4 idx_cell, int &hindex) {
+void getHindex(idx4 idx_cell, long int &hindex) {
     int X[NDIM];
     for (int i=0; i<NDIM; i++){
         X[i] = idx_cell.idx3[i];
@@ -104,7 +104,7 @@ void getHindex(idx4 idx_cell, int &hindex) {
 }
 
 // compute the 3-index for a given Hilbert index and AMR level
-void getHindexInv(int hindex, int L, idx4& idx_cell) {
+void getHindexInv(long int hindex, int L, idx4& idx_cell) {
     int X[NDIM];
     hilbertToTranspose(hindex, L, X);
     int n = 2 << (L - 1), p, q, t;
@@ -354,7 +354,7 @@ void writeGrid(host_map &host_table, string filename) {
 void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table) {
     idx4 idx_cell;
     for (int L = 0; L <= LBASE; L++) {
-        for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+        for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
             setGridCell(host_grid, idx_cell, hindex, L == LBASE, host_table); // cells have flag_leaf == 1 at L == LBASE == 3
         }
@@ -362,7 +362,7 @@ void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table) {
 };
 
 // set a grid cell in the grid array and the hash table
-void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
+void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
                  host_map &host_table) {
     if (keyExists(idx_cell, host_table)) throw runtime_error("setting existing cell");
 
@@ -399,7 +399,7 @@ void refineGrid1lvl(Cell (&host_grid)[NCELL_MAX], host_map &host_table) {
 void setGridChildren(Cell (&host_grid)[NCELL_MAX], idx4 idx_cell, short i, 
                        host_map &host_table) {
     if (i == NDIM) {
-        int hindex;
+        long int hindex;
         getHindex(idx_cell, hindex);
         setGridCell(host_grid, idx_cell, hindex, 1, host_table);
         return;
@@ -411,7 +411,7 @@ void setGridChildren(Cell (&host_grid)[NCELL_MAX], idx4 idx_cell, short i,
 
 // refine a grid cell
 void refineGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, host_map &host_table) {
-    int hindex;
+    long int hindex;
     getHindex(idx_cell, hindex);
     if (!keyExists(idx_cell, host_table)) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
     Cell cell = host_table[idx_cell];
