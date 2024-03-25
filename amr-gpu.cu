@@ -67,7 +67,7 @@ void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]) {
 }
 
 // compute the Hilbert index for a given 4-idx (i, j, k, L)
-void getHindex(idx4 idx_cell, int& hindex) {
+void getHindex(idx4 idx_cell, int &hindex) {
     int X[NDIM];
     for (int i=0; i<NDIM; i++){
         X[i] = idx_cell.idx3[i];
@@ -374,16 +374,16 @@ void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const int hi
     for (int i = 0; i < NDIM; i++) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
-    host_grid[offset + hindex].rho = rhoFunc(coord, sigma);
 
-    host_grid[offset + hindex].flag_leaf = flag_leaf;
     if (offset + hindex >= NCELL_MAX) throw runtime_error("offset () + hindex >= N_cell_max");
+    host_grid[offset + hindex].rho = rhoFunc(coord, sigma);
+    host_grid[offset + hindex].flag_leaf = flag_leaf;
     
     host_table[idx_cell] = host_grid[offset + hindex];
-    printf("HOST ");
-    idx_cell.print();
-    host_grid[offset + hindex].print();
-    printf("\n");
+    //printf("HOST ");
+    //idx_cell.print();
+    //host_grid[offset + hindex].print();
+    //printf("\n");
 }
 
 // refine the grid by one level
@@ -695,6 +695,109 @@ void test_gradients_baseGrid() {
     printHashtable<<<1, 1>>>(contained_keys.begin(), hashtable.ref(cuco::find), num_inserted[0]);
 }
 
+
+/*long int time_calcGrad(int BLOCK_SIZE, host_map &host_table) {
+    GRID_SIZE = (NCELL_MAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    thrust::device_vector<idx4> insert_keys(host_table.size());
+    thrust::device_vector<Cell> underl_values(host_table.size());
+    thrust::device_vector<Cell*> insert_values(host_table.size());
+
+    int i = 0;
+    for (auto kv : host_table) {
+        insert_keys[i] = kv.first;
+        underl_values[i] = kv.second;
+        i++;
+    }
+
+    thrust::device_vector<int> num_inserted(1);
+    insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
+                                                    thrust::raw_pointer_cast(underl_values.data()),
+                                                    host_table.size(),
+                                                    num_inserted.data().get());
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
+    
+    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
+                                    cuco::empty_key{empty_idx4_sentinel},
+                                    cuco::empty_value{empty_pcell_sentinel},
+                                    thrust::equal_to<idx4>{},
+                                    cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
+    auto insert_ref = hashtable.ref(cuco::insert);
+
+    
+    // reset num_inserted
+    num_inserted[0] = 0;
+    insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
+                                    insert_keys.begin(),
+                                    insert_values.begin(),
+                                    host_table.size(),
+                                    num_inserted.data().get());
+
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
+    
+    thrust::device_vector<idx4> contained_keys(num_inserted[0]);
+    thrust::device_vector<Cell*> contained_values(num_inserted[0]);
+    // this is random ordered and is DIFFERENT from insert_keys order
+    hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
+
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
+    auto find_ref = hashtable.ref(cuco::find);
+
+    auto start = high_resolution_clock::now();
+
+    // run as kernel on GPU
+
+    calcGrad<<<GRID_SIZE, BLOCK_SIZE>>>(find_ref, 
+                                        contained_keys.begin(), 
+                                        num_inserted[0]);
+
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(stop - start);
+    return duration.count();
+}*/
+
+/*void test_speed() {
+    for (LBASE = 2; LBASE < 8; LBASE++) {
+
+        Cell host_grid[NCELL_MAX];
+        host_map host_table;
+        
+        makeBaseGrid(host_grid, host_table);
+
+        // hashtable insert values from host_grid
+
+        int m = 32, M = 1024;
+        long int min_kernel_time = time_calcGrad(m, host_table);
+        long int max_kernel_time = time_calcGrad(M, host_table);
+        long int mid_kernel_time = min_kernel_time;
+        int mid = -1;
+        while (M - m > 32 && max_kernel_time > min_kernel_time) {
+            mid = (M+m)/2/32*32;
+            mid_kernel_time = time_calcGrad(mid, host_table);
+            if (mid_kernel_time <= min_kernel_time) {
+                m = mid;
+                min_kernel_time = mid_kernel_time;
+            } else {
+                M = mid;
+                max_kernel_time = mid_kernel_time;
+            }
+        }
+        cout << "LBASE = " << LBASE << ", best kernel block size: " << mid << endl;
+        cout << "LBASE = " << LBASE << ", time: " << mid_kernel_time << " ms" << endl;
+        if (max_kernel_time == min_kernel_time && M - m > 32)
+            cout << "LBASE = " << LBASE << ", Same time. Min block: " << m << ", max block: " << M << endl << endl;
+    }
+}
+
 void test_GPU_map() {
     LBASE = 0; // override const
 
@@ -765,7 +868,7 @@ void test_GPU_map() {
     
     if (result) { cout << "Success! Target values are properly retrieved.\n"; } //incremented
     else { cout << "Failed at comparison\n"; } //incremented
-}
+}*/
 
 int main() {
     try {

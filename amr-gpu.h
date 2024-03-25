@@ -30,10 +30,12 @@ using namespace std::chrono;
 
 // constants
 int32_t LBASE = 2; // 3; base AMR level
-const int32_t LMAX = 6; // max AMR level
+const int32_t LMAX = 15; // max AMR level
 
 const int32_t NDIM = 3; // number of dimensions
-const int32_t NCELL_MAX = 2097152 + 10; // maximum number of cells
+// expression must have a constant value
+const uint32_t NCELL_MAX = 2097152 + 10; //2147483648; //2*2^15 = 70368744177664; // lround(2*pow(2, LMAX*NDIM)); // maximum number of cells
+
 const int32_t IDX_MAX = pow(2, LMAX) - 1;
 const __device__ double FD_KERNEL[4][4] = {
     {-1., 0., 1., 3.},
@@ -50,7 +52,7 @@ const double STEP_EPS = 0.00001;
 
 // GPU consts
 auto constexpr BLOCK_SIZE = 256; //32*n
-auto const GRID_SIZE      = (NCELL_MAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
+auto const GRID_SIZE  = (NCELL_MAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
 typedef unsigned short int uint16;
 auto const uint16_nan = numeric_limits<uint16>::quiet_NaN(); // size_t = uint16
@@ -191,7 +193,7 @@ __host__ __device__ Cell* empty_pcell_sentinel = nullptr;
 void checkLast(const char* const file, const int line);
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
 void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
-void getHindex(idx4 idx_cell, int& hindex);
+void getHindex(idx4 idx_cell, int &hindex);
 void getHindexInv(int hindex, int L, idx4& idx_cell);
 double rhoFunc(const double coord[NDIM], const double sigma);
 bool refCrit(double rho);
@@ -199,6 +201,7 @@ __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, cons
 bool keyExists(const idx4& idx_cell, host_map &host_table);
 template <typename Map>
 __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res);
+// "Cell *host_grid" instead of "Cell (&host_grid)[NCELL_MAX]" did not work
 void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table);
 void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
                  host_map &host_table);
