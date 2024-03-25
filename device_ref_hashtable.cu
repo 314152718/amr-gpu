@@ -50,7 +50,7 @@ kernel<<<bl,tpb>>>(dv_ptr)
  using namespace std::chrono;
 
  const int32_t NDIM = 3; // number of dimensions
- const int32_t NMAX = 2097152 + 10; // maximum number of cells
+ const int32_t NCELL_MAX = 2097152 + 10; // maximum number of cells
  const double EPS = 0.000001;
  const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
  typedef unsigned short int uint16;
@@ -278,7 +278,7 @@ void checkLast(const char* const file, const int line)
 
    // Compute capacity based on a 100% load factor
    auto constexpr load_factor = 1.0;
-   size_t const capacity = NMAX;
+   size_t const capacity = NCELL_MAX;
  
    // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
    auto map = cuco::static_map{capacity,

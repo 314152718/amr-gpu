@@ -30,9 +30,6 @@
 using namespace std;
 using namespace std::chrono;
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-
-#define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
 void checkLast(const char* const file, const int line)
 {
     cudaError_t const err{cudaGetLastError()};
@@ -285,6 +282,7 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
 template <typename Map>
 __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable_ref) {
     bool is_ref[2];
+    // explicitly use NDIM == 3
     double dx, rho[3];
     int fd_case;
 
@@ -353,7 +351,7 @@ void writeGrid(host_map &host_table, string filename) {
 }
 
 // initialize the base level grid
-void makeBaseGrid(Cell (&host_grid)[NMAX], host_map &host_table) {
+void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table) {
     idx4 idx_cell;
     for (int L = 0; L <= LBASE; L++) {
         for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
@@ -364,11 +362,12 @@ void makeBaseGrid(Cell (&host_grid)[NMAX], host_map &host_table) {
 };
 
 // set a grid cell in the grid array and the hash table
-void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
+void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
                  host_map &host_table) {
     if (keyExists(idx_cell, host_table)) throw runtime_error("setting existing cell");
 
     int offset;
+    // explicitly use NDIM == 3
     double dx, coord[3];
     offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
     dx = 1.0 / pow(2, idx_cell.L);
@@ -378,7 +377,7 @@ void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex,
     host_grid[offset + hindex].rho = rhoFunc(coord, sigma);
 
     host_grid[offset + hindex].flag_leaf = flag_leaf;
-    if (offset + hindex >= NMAX) throw runtime_error("offset () + hindex >= N_cell_max");
+    if (offset + hindex >= NCELL_MAX) throw runtime_error("offset () + hindex >= N_cell_max");
     
     host_table[idx_cell] = host_grid[offset + hindex];
     printf("HOST ");
@@ -388,7 +387,7 @@ void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex,
 }
 
 // refine the grid by one level
-void refineGrid1lvl(Cell (&host_grid)[NMAX], host_map &host_table) {
+void refineGrid1lvl(Cell (&host_grid)[NCELL_MAX], host_map &host_table) {
     for (auto kv : host_table) {
         if (refCrit(kv.second.rho) && kv.second.flag_leaf) {
             refineGridCell(host_grid, kv.first, host_table);
@@ -397,7 +396,7 @@ void refineGrid1lvl(Cell (&host_grid)[NMAX], host_map &host_table) {
 }
 
 // set child cells in the grid array and hash table
-void setGridChildren(Cell (&host_grid)[NMAX], idx4 idx_cell, short i, 
+void setGridChildren(Cell (&host_grid)[NCELL_MAX], idx4 idx_cell, short i, 
                        host_map &host_table) {
     if (i == NDIM) {
         int hindex;
@@ -411,7 +410,7 @@ void setGridChildren(Cell (&host_grid)[NMAX], idx4 idx_cell, short i,
 }
 
 // refine a grid cell
-void refineGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, host_map &host_table) {
+void refineGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, host_map &host_table) {
     int hindex;
     getHindex(idx_cell, hindex);
     if (!keyExists(idx_cell, host_table)) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
@@ -517,7 +516,7 @@ void test_unordered_map() {
 }
 
 void test_makeBaseGrid() {
-    Cell host_grid[NMAX];
+    Cell host_grid[NCELL_MAX];
     host_map host_table;
     
     cout << "Making base grid" << endl;
@@ -551,7 +550,7 @@ void test_makeBaseGrid() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NMAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
                                       cuco::empty_value{empty_pcell_sentinel},
                                       thrust::equal_to<idx4>{},
@@ -604,7 +603,7 @@ void test_makeBaseGrid() {
 }
 
 void test_gradients_baseGrid() {
-    Cell host_grid[NMAX];
+    Cell host_grid[NCELL_MAX];
     host_map host_table;
     
     cout << "Making base grid" << endl;
@@ -645,7 +644,7 @@ void test_gradients_baseGrid() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NMAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
                                       cuco::empty_value{empty_pcell_sentinel},
                                       thrust::equal_to<idx4>{},
@@ -717,7 +716,7 @@ void test_GPU_map() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NMAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
                                       cuco::empty_value{empty_pcell_sentinel},
                                       thrust::equal_to<idx4>{},

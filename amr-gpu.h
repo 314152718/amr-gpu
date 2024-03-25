@@ -25,12 +25,16 @@
 using namespace std;
 using namespace std::chrono;
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+#define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
+
 // constants
 int32_t LBASE = 2; // 3; base AMR level
 const int32_t LMAX = 6; // max AMR level
 
 const int32_t NDIM = 3; // number of dimensions
-const int32_t NMAX = 2097152 + 10; // maximum number of cells
+const int32_t NCELL_MAX = 2097152 + 10; // maximum number of cells
+const int32_t IDX_MAX = pow(2, LMAX) - 1;
 const __device__ double FD_KERNEL[4][4] = {
     {-1., 0., 1., 3.},
     {-9., 5., 4., 15.},
@@ -46,7 +50,7 @@ const double STEP_EPS = 0.00001;
 
 // GPU consts
 auto constexpr BLOCK_SIZE = 256; //32*n
-auto const GRID_SIZE      = (NMAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
+auto const GRID_SIZE      = (NCELL_MAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
 typedef unsigned short int uint16;
 auto const uint16_nan = numeric_limits<uint16>::quiet_NaN(); // size_t = uint16
@@ -127,6 +131,7 @@ struct ramses_hash {
 // custom value type
 struct Cell {
     double rho;
+    // explicitly use NDIM == 3
     double rho_grad[3];
     int32_t flag_leaf;
 
@@ -183,6 +188,7 @@ auto const empty_cell_sentinel = Cell{double_nan, double_nan, double_nan, double
 __host__ __device__ Cell* empty_pcell_sentinel = nullptr;
 
 // --------------- FUNCTION DECLARATIONS ------------ //
+void checkLast(const char* const file, const int line);
 void transposeToHilbert(const int X[NDIM], const int L, int &hindex);
 void hilbertToTranspose(const int hindex, const int L, int (&X)[NDIM]);
 void getHindex(idx4 idx_cell, int& hindex);
@@ -193,16 +199,16 @@ __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, cons
 bool keyExists(const idx4& idx_cell, host_map &host_table);
 template <typename Map>
 __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res);
-void makeBaseGrid(Cell (&host_grid)[NMAX], host_map &host_table);
-void setGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
+void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table);
+void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const int hindex, int32_t flag_leaf,
                  host_map &host_table);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
-void setGridChildren(Cell (&host_grid)[NMAX], idx4 idx_cell, short i, host_map &host_table);
-void refineGridCell(Cell (&host_grid)[NMAX], const idx4 idx_cell, host_map &host_table);
+void setGridChildren(Cell (&host_grid)[NCELL_MAX], idx4 idx_cell, short i, host_map &host_table);
+void refineGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, host_map &host_table);
 template <typename Map>
 void printHashtableIdx(SizeMap<Map> &sizeTable);
 void printHashtableIdx(host_map &host_table);
-void refineGrid1lvl(Cell (&host_grid)[NMAX], host_map &host_table);
+void refineGrid1lvl(Cell (&host_grid)[NCELL_MAX], host_map &host_table);
 void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
 template <typename Map>
 __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, Map hashtable);

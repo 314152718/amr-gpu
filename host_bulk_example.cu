@@ -36,7 +36,7 @@
 const int32_t LBASE = 3; // base AMR level
 const int32_t LMAX = 6; // max AMR level
 const int32_t NDIM = 3; // number of dimensions
-const int32_t NMAX = 2097152 + 10; // maximum number of cells
+const int32_t NCELL_MAX = 2097152 + 10; // maximum number of cells
 const __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
 const double rho_crit = 0.01; // critical density for refinement
 const double sigma = 0.001; // std of Gaussian density field
