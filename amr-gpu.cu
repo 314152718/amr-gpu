@@ -351,18 +351,18 @@ void writeGrid(host_map &host_table, string filename) {
 }
 
 // initialize the base level grid
-void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table) {
+void makeBaseGrid(host_map &host_table, int32_t lbase) {
     idx4 idx_cell;
-    for (int L = 0; L <= LBASE; L++) {
+    for (int L = 0; L <= lbase; L++) {
         for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
             getHindexInv(hindex, L, idx_cell);
-            setGridCell(host_grid, idx_cell, hindex, L == LBASE, host_table); // cells have flag_leaf == 1 at L == LBASE == 3
+            setGridCell(idx_cell, hindex, L == lbase, host_table); // cells have flag_leaf == 1 at L == lbase == 3
         }
     }
 };
 
 // set a grid cell in the grid array and the hash table
-void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
+void setGridCell(const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
                  host_map &host_table) {
     if (keyExists(idx_cell, host_table)) throw runtime_error("setting existing cell");
 
@@ -375,42 +375,41 @@ void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const long i
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
 
+    // linear 1d index of all cells
     if (offset + hindex >= NCELL_MAX) throw runtime_error("offset () + hindex >= N_cell_max");
-    host_grid[offset + hindex].rho = rhoFunc(coord, sigma);
-    host_grid[offset + hindex].flag_leaf = flag_leaf;
     
-    host_table[idx_cell] = host_grid[offset + hindex];
+    host_table[idx_cell] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, flag_leaf);
     //printf("HOST ");
     //idx_cell.print();
-    //host_grid[offset + hindex].print();
+    //host_table[idx_cell].print();
     //printf("\n");
 }
 
 // refine the grid by one level
-void refineGrid1lvl(Cell (&host_grid)[NCELL_MAX], host_map &host_table) {
+void refineGrid1lvl(host_map &host_table) {
     for (auto kv : host_table) {
         if (refCrit(kv.second.rho) && kv.second.flag_leaf) {
-            refineGridCell(host_grid, kv.first, host_table);
+            refineGridCell(kv.first, host_table);
         }
     }
 }
 
 // set child cells in the grid array and hash table
-void setGridChildren(Cell (&host_grid)[NCELL_MAX], idx4 idx_cell, short i, 
+void setGridChildren(idx4 idx_cell, short i, 
                        host_map &host_table) {
     if (i == NDIM) {
         long int hindex;
         getHindex(idx_cell, hindex);
-        setGridCell(host_grid, idx_cell, hindex, 1, host_table);
+        setGridCell(idx_cell, hindex, 1, host_table);
         return;
     }
-    setGridChildren(host_grid, idx_cell, i+1, host_table);
+    setGridChildren(idx_cell, i+1, host_table);
     idx_cell.idx3[i]++;
-    setGridChildren(host_grid, idx_cell, i+1, host_table);
+    setGridChildren(idx_cell, i+1, host_table);
 }
 
 // refine a grid cell
-void refineGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, host_map &host_table) {
+void refineGridCell(const idx4 idx_cell, host_map &host_table) {
     long int hindex;
     getHindex(idx_cell, hindex);
     if (!keyExists(idx_cell, host_table)) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
@@ -422,7 +421,7 @@ void refineGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, host_map 
     idx4 idx_child(idx_cell.idx3, size_t(idx_cell.L + 1));
     for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
     // and create 2^NDIM leaf children
-    setGridChildren(host_grid, idx_child, 0, host_table);
+    setGridChildren(idx_child, 0, host_table);
     // refine neighbors if needed
     idx4 idx_neighbor, idx_parent;
     for (short dir = 0; dir < NDIM; dir++) {
@@ -438,7 +437,7 @@ void refineGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, host_map 
                 throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
             if (!keyExists(idx_neighbor, host_table)) continue; // parent is at border
-            refineGridCell(host_grid, idx_neighbor, host_table);
+            refineGridCell(idx_neighbor, host_table);
         }
     }
 }
@@ -516,17 +515,15 @@ void test_unordered_map() {
 }
 
 void test_makeBaseGrid() {
-    Cell host_grid[NCELL_MAX];
     host_map host_table;
     
     cout << "Making base grid" << endl;
     
-    makeBaseGrid(host_grid, host_table);
-
+    makeBaseGrid(host_table);
     writeGrid(host_table, "grid-host.csv");
     
 
-    // hashtable insert values from host_grid
+    // hashtable insert values from host_table
 
     thrust::device_vector<idx4> insert_keys(host_table.size());
     thrust::device_vector<Cell> underl_values(host_table.size());
@@ -603,24 +600,23 @@ void test_makeBaseGrid() {
 }
 
 void test_gradients_baseGrid() {
-    Cell host_grid[NCELL_MAX];
     host_map host_table;
     
     cout << "Making base grid" << endl;
     
-    makeBaseGrid(host_grid, host_table);
+    makeBaseGrid(host_table);
 
     /*const int num_ref = LMAX - LBASE;
     cout << "Refining grid levels" << endl;
     for (short i = 0; i < num_ref; i++) {
-       refineGrid1lvl(host_grid, host_table);
+       refineGrid1lvl(host_table);
     }
     cout << "Finished refining grid levels" << endl;*/
     //string filename = "grid-host.csv";
     writeGrid(host_table, "grid-host.csv");
     
 
-    // hashtable insert values from host_grid
+    // hashtable insert values from host_table
 
     thrust::device_vector<idx4> insert_keys(host_table.size());
     thrust::device_vector<Cell> underl_values(host_table.size());
@@ -696,12 +692,13 @@ void test_gradients_baseGrid() {
 }
 
 
-/*long int time_calcGrad(int BLOCK_SIZE, host_map &host_table) {
-    GRID_SIZE = (NCELL_MAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
+long int time_calcGrad(int block_size, host_map &host_table, int repeat=1) {
+    
+    printf("time_calcGrad insert_values start\n");
     thrust::device_vector<idx4> insert_keys(host_table.size());
     thrust::device_vector<Cell> underl_values(host_table.size());
     thrust::device_vector<Cell*> insert_values(host_table.size());
+    printf("time_calcGrad insert_values\n");
 
     int i = 0;
     for (auto kv : host_table) {
@@ -715,6 +712,7 @@ void test_gradients_baseGrid() {
                                                     thrust::raw_pointer_cast(underl_values.data()),
                                                     host_table.size(),
                                                     num_inserted.data().get());
+    printf("time_calcGrad insert_vector_pointers\n");
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
 
@@ -739,44 +737,56 @@ void test_gradients_baseGrid() {
     CHECK_LAST_CUDA_ERROR();
 
     
+    printf("time_calcGrad contained_keys start\n");
     thrust::device_vector<idx4> contained_keys(num_inserted[0]);
     thrust::device_vector<Cell*> contained_values(num_inserted[0]);
     // this is random ordered and is DIFFERENT from insert_keys order
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
+    printf("time_calcGrad contained_keys end\n");
 
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
 
     auto find_ref = hashtable.ref(cuco::find);
+    auto grid_size = (NCELL_MAX + block_size - 1) / block_size;
 
-    auto start = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(high_resolution_clock::now() - high_resolution_clock::now());
+    for (int i = 0; i < repeat; i++) {
+        auto start = high_resolution_clock::now();
 
-    // run as kernel on GPU
+        // run as kernel on GPU
 
-    calcGrad<<<GRID_SIZE, BLOCK_SIZE>>>(find_ref, 
-                                        contained_keys.begin(), 
-                                        num_inserted[0]);
+        calcGrad<<<grid_size, block_size>>>(find_ref, 
+                                            contained_keys.begin(), 
+                                            num_inserted[0]); // add for (50)
+        printf("time_calcGrad calcGrad end\n");
 
-    cudaDeviceSynchronize();
-    CHECK_LAST_CUDA_ERROR();
+        cudaDeviceSynchronize();
+        CHECK_LAST_CUDA_ERROR();
 
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>(stop - start);
-    return duration.count();
-}*/
+        auto stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        if (repeat > 1) {
+            cout << "block_size = " << block_size << ", time: " << duration.count()/1000.0 << " ms" << endl;
+        }
+    }
+    return duration.count()/1000.0;
+}
 
-/*void test_speed() {
-    for (LBASE = 2; LBASE < 8; LBASE++) {
+void test_speed() {
+    for (int32_t lbase = 2; lbase <= 2; lbase++) {
 
-        Cell host_grid[NCELL_MAX];
+        //cout << "START" << endl;
         host_map host_table;
         
-        makeBaseGrid(host_grid, host_table);
+        makeBaseGrid(host_table, lbase);
+        //cout << "STEP1" << endl;
 
-        // hashtable insert values from host_grid
+        // hashtable insert values from host_table
 
         int m = 32, M = 1024;
         long int min_kernel_time = time_calcGrad(m, host_table);
+        //cout << "STEP2" << endl;
         long int max_kernel_time = time_calcGrad(M, host_table);
         long int mid_kernel_time = min_kernel_time;
         int mid = -1;
@@ -791,10 +801,10 @@ void test_gradients_baseGrid() {
                 max_kernel_time = mid_kernel_time;
             }
         }
-        cout << "LBASE = " << LBASE << ", best kernel block size: " << mid << endl;
-        cout << "LBASE = " << LBASE << ", time: " << mid_kernel_time << " ms" << endl;
+        cout << "lbase = " << lbase << ", best kernel block size: " << mid << endl;
         if (max_kernel_time == min_kernel_time && M - m > 32)
-            cout << "LBASE = " << LBASE << ", Same time. Min block: " << m << ", max block: " << M << endl << endl;
+            cout << "lbase = " << lbase << ", Same time. Min block: " << m << ", max block: " << M << endl << endl;
+        time_calcGrad(mid, host_table, 50);
     }
 }
 
@@ -868,11 +878,11 @@ void test_GPU_map() {
     
     if (result) { cout << "Success! Target values are properly retrieved.\n"; } //incremented
     else { cout << "Failed at comparison\n"; } //incremented
-}*/
+}
 
 int main() {
     try {
-        test_gradients_baseGrid();
+        test_speed();
     } catch  (const runtime_error& error) {
         printf(error.what());
     }

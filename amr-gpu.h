@@ -30,11 +30,12 @@ using namespace std::chrono;
 
 // constants
 int32_t LBASE = 2; // 3; base AMR level
-const int32_t LMAX = 15; // max AMR level
+const int32_t LMAX = 7; // max AMR level
 
 const int32_t NDIM = 3; // number of dimensions
 // expression must have a constant value
-const uint32_t NCELL_MAX = 2097152 + 10; //2147483648; //2*2^15 = 70368744177664; // lround(2*pow(2, LMAX*NDIM)); // maximum number of cells
+constexpr uint32_t NCELL_MAX = 4194304; //2147483648; (10) // 2097152 + 10; 
+//2*2^15 = 70368744177664; // lround(2*pow(2, LMAX*NDIM)); <- dont work
 
 const int32_t IDX_MAX = pow(2, LMAX) - 1;
 const __device__ double FD_KERNEL[4][4] = {
@@ -76,7 +77,7 @@ struct idx4 {
     }
     // __device__: identifier std basic string is undefined in device code
     __host__ __device__ void print() const {
-        printf("[%d, %d, %d](L=%d)",idx3[0], idx3[1], idx3[2], L);
+        printf("[%d, %d, %d](L=%d)", idx3[0], idx3[1], idx3[2], L);
     }
     __host__ __device__ void println() const {
         print();
@@ -201,17 +202,16 @@ __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, cons
 bool keyExists(const idx4& idx_cell, host_map &host_table);
 template <typename Map>
 __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res);
-// "Cell *host_grid" instead of "Cell (&host_grid)[NCELL_MAX]" did not work
-void makeBaseGrid(Cell (&host_grid)[NCELL_MAX], host_map &host_table);
-void setGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
+void makeBaseGrid(host_map &host_table, int32_t lbase = LBASE);
+void setGridCell(const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
                  host_map &host_table);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
-void setGridChildren(Cell (&host_grid)[NCELL_MAX], idx4 idx_cell, short i, host_map &host_table);
-void refineGridCell(Cell (&host_grid)[NCELL_MAX], const idx4 idx_cell, host_map &host_table);
+void setGridChildren(idx4 idx_cell, short i, host_map &host_table);
+void refineGridCell(const idx4 idx_cell, host_map &host_table);
 template <typename Map>
 void printHashtableIdx(SizeMap<Map> &sizeTable);
 void printHashtableIdx(host_map &host_table);
-void refineGrid1lvl(Cell (&host_grid)[NCELL_MAX], host_map &host_table);
+void refineGrid1lvl(host_map &host_table);
 void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
 template <typename Map>
 __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, Map hashtable);
