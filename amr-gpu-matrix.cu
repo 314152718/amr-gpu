@@ -33,10 +33,10 @@ using namespace std::chrono;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 #define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
 
-typedef matrix_type int***** //thrust::double_access_matrix<double>;
+//typedef matrix_type int***** //thrust::double_access_matrix<double>;
 
 // compute the Hilbert index for a given 4-idx (i, j, k, L)
-void getHindex(int idx_level[NDIM+1], int& hindex) {
+__host__ __device__ void getHindex(const int *idx_level, long int &hindex) {
     int X[NDIM];
     for (int i=0; i<NDIM; i++){
         X[i] = idx_level[i];
@@ -72,8 +72,18 @@ void getHindex(int idx_level[NDIM+1], int& hindex) {
     transposeToHilbert(X, L, hindex);
 }
 
+__device__ double log(double x, double base) {
+    return log(x) / log(base);
+}
+
+__device__ void getHindexAndOffset(long int hindex_plus_offset, long int &offset, long int &hindex, int &L) {
+    L = floor(log(hindex_plus_offset*(pow(2, NDIM) - 1) + 1, pow(2, NDIM)) + EPS);
+    offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
+    hindex = hindex_plus_offset - offset;
+}
+
 // compute the 3-index for a given Hilbert index and AMR level
-void getHindexInv(int hindex, int L, int *idx_level) {
+__host__ __device__ void getHindexInv(long int hindex, int L, int *idx_level) {
     int X[NDIM];
     hilbertToTranspose(hindex, L, X);
     int n = 2 << (L - 1), p, q, t;
@@ -125,216 +135,253 @@ void getParentIdx(const int *idx_level, int *idx_level_parent) {
 }
 
 // compute the indices of the neighbor cells on a given face
-__host__ __device__ void getNeighborIdx(const int *idx_cell, const int dir, const bool pos, int *idx_neighbor) {
+__host__ __device__ void getNeighborIdx(const int *idx_level, const int dir, const bool pos, int *idx_neighbor) {
     // after this getNeighborIdx is applied, must check if neighbor exists (border) !!!
     for (short i = 0; i < NDIM; i++) {
-        idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
+        idx_neighbor[i] = idx_level[i] + (int(pos) * 2 - 1) * int(i == dir);
     }
-    idx_neighbor.L = idx_cell.L;
+    idx_neighbor[NDIM] = idx_level[NDIM];
 }
 
 // check if a given face is a border of the computational domain
-__host__ __device__ void checkIfBorder(const int *idx_cell, const int dir, const bool pos, bool &is_border) {
-    is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
+__host__ __device__ void checkIfBorder(const int *idx_level, const int dir, const bool pos, bool &is_border) {
+    is_border = idx_level[dir] == int(pos) * (pow(2, idx_level[NDIM]) - 1);
 }
 
-bool keyExists(const int *idx_cell, matrix_type matrix_grid) {
-    return host_table.find(idx_cell) != host_table.end();
-}
 // cannot return a value on the __global__ kernel, but can on __device__
-template <typename Map>
-__device__ void keyExists(const int *idx_cell, Map hashtable_ref, bool &res) {
-    res = hashtable_ref.find(idx_cell) != hashtable_ref.end();
+__device__ void keyExists(const int *idx_level, size_t num_inserted, bool &res) {
+    long int hindex;
+    getHindex(idx_level, hindex);
+    long int offset = (pow(2, NDIM * idx_level[NDIM]) - 1) / (pow(2, NDIM) - 1);
+    res = 0 <= offset + hindex && offset + hindex < num_inserted;
 }
 
 // get information about the neighbor cell necessary for computing the gradient
 // GPU VERISON: get information about the neighbor cell necessary for computing the gradient
-template <typename Map>
-__device__ void getNeighborInfo(const int *idx_cell, const int dir, const bool pos, 
-                                bool &is_ref, double &rho_neighbor, Map hashtable_ref) {
+template <typename DevicePtr>
+__device__ void getNeighborInfo(const int *idx_level, const int dir, const bool pos, 
+                                bool &is_ref, double &rho_neighbor, 
+                                DevicePtr gpu_1d_grid_it, size_t num_inserted) {
+    printf("getNeighborInfo start\n");
     int *idx_neighbor = new int[NDIM+1];
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
     // check if the cell is a border cell
-    checkIfBorder(idx_cell, dir, pos, is_border);
+    checkIfBorder(idx_level, dir, pos, is_border);
     // compute the index of the neighbor on the same level
-    getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+    printf("getNeighborIdx start\n");
+    getNeighborIdx(idx_level, dir, pos, idx_neighbor);
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
-    keyExists(idx_neighbor, hashtable_ref, exists); 
+    printf("keyExists start\n");
+    keyExists(idx_neighbor, num_inserted, exists); 
     is_notref = !exists && !is_border;
     is_ref = !is_notref && !is_border;
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
     // if the neighbor is not refined, set the neighbor index to the index of the parent cell's neighbor
     // if the neighbor is refined, don't change the neighbor index
     for (short i = 0; i < NDIM; i++) {
-        idx1_parent_neighbor = idx_cell.idx3[i] / 2 + (int(pos) * 2 - 1) * int(i == dir);
-        idx_neighbor.idx3[i] = idx_cell.idx3[i] * int(is_border) + idx_neighbor.idx3[i] * int(is_ref) 
+        idx1_parent_neighbor = idx_level[i] / 2 + (int(pos) * 2 - 1) * int(i == dir);
+        idx_neighbor[i] = idx_level[i] * int(is_border) + idx_neighbor[i] * int(is_ref) 
                                 + idx1_parent_neighbor * int(is_notref);
     }
     // subtract one from the AMR level if the neighbor is not refined
-    idx_neighbor.L = idx_cell.L - int(is_notref);
+    idx_neighbor[NDIM] = idx_level[NDIM] - int(is_notref);
     // if the cell is a border cell, use the boundary condition
-    Cell* pCell = hashtable_ref.find(idx_neighbor)->second;
-    rho_neighbor = pCell->rho * int(!is_border) + rho_boundary * int(is_border);
+    long int neigh_offset = (pow(2, NDIM * idx_neighbor[NDIM]) - 1) / (pow(2, NDIM) - 1);
+    long int neigh_hindex;
+    printf("getHindex start\n");
+    getHindex(idx_neighbor, neigh_hindex);
+    // not supposed to be true
+    if (neigh_offset + neigh_hindex >= num_inserted) printf("ERROR: offset + hindex >= num_inserted");
+
+    printf("getNeighborInfo gpu_1d_grid_it start\n");
+    Cell cell = gpu_1d_grid_it[neigh_offset + neigh_hindex];
+    rho_neighbor = cell.rho * int(!is_border) + rho_boundary * int(is_border);
 }
 
 // compute the gradient for one cell
-template <typename Map>
-__device__ void calcGradCell(const int *idx_cell, Cell* cell, Map hashtable_ref) {
+template <typename DevicePtr>
+__device__ void calcGradCell(int *idx_level, Cell cell, DevicePtr gpu_1d_grid_it, size_t num_inserted) {
+    printf("calcGradCell start\n");
     bool is_ref[2];
     double dx, rho[3];
     int fd_case;
 
-    dx = pow(0.5, idx_cell.L);
-    rho[2] = cell->rho;
+    dx = pow(0.5, idx_level[NDIM]);
+    rho[2] = cell.rho;
 
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
-            getNeighborInfo(idx_cell, dir, pos, is_ref[pos], rho[pos], hashtable_ref);
+            printf("calcGradCell getNeighborInfo start\n");
+            getNeighborInfo(idx_level, dir, pos, is_ref[pos], rho[pos], gpu_1d_grid_it, num_inserted);
         }
         fd_case = is_ref[0] + 2 * is_ref[1];
-        cell->rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2]
+        cell.rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2]
                              + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
     }
 }
 
 // compute the gradient
-template <typename Map, typename KeyIter>
-__global__ void calcGrad(Map hashtable_ref, KeyIter contained_keys, size_t num_keys) {
+template <typename DevicePtr>
+__global__ void calcGrad(DevicePtr gpu_1d_grid_it, size_t num_inserted) {
+    auto gpu_1d_grid_zipped =
+        thrust::make_zip_iterator(thrust::make_tuple(gpu_1d_grid_it));
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-    contained_keys += tid;
+    DevicePtr gpu_1d_grid_it2 = DevicePtr(gpu_1d_grid_it);
+    gpu_1d_grid_it += tid;
 
-    while (tid < num_keys) {
-        int *idx_cell = *contained_keys;
-        Cell *pCell = hashtable_ref.find(idx_cell)->second;
-        calcGradCell(idx_cell, pCell, hashtable_ref);
-
-        contained_keys += gridDim.x * blockDim.x;
+    while (tid < num_inserted) {
+        long int offset, hindex;
+        int L;
+        getHindexAndOffset(tid, offset, hindex, L);
+        int *idx_level;
+        getHindexInv(hindex, L, idx_level);
+        printf("calcGrad print start %d %d %d %d %d\n", num_inserted, tid, threadIdx.x, blockDim.x, blockIdx.x);
+        //Cell cell = *gpu_1d_grid_it;
+        cell.println();
+        cell = *gpu_1d_grid_it;
+        cell.println();
+        printf("calcGrad calcGradCell start %d %d\n", num_inserted, tid);
+        //calcGradCell(idx_level, gpu_1d_grid_it[tid], gpu_1d_grid_it, num_inserted);
+        gpu_1d_grid_it += gridDim.x * blockDim.x;
         tid += gridDim.x * blockDim.x;
     }
 }
 
-template <typename KeyIter, typename ValueIter>
-void writeGrid(KeyIter keys_iter, ValueIter underl_values_iter, size_t num_keys, string filename) {
+__host__ __device__ void print_idx_level(int *idx_level) {
+    string s = "[";
+    for (int i = 0; i < NDIM-1; i++) {
+        s += to_string(idx_level[i])+", ";
+    }
+    s += to_string(idx_level[NDIM-1])+"](L="+to_string(idx_level[NDIM])+")\n";
+    printf(s.c_str());
+}
+
+void writeGrid(thrust::device_vector<Cell> &gpu_1d_grid, string filename) {
     // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
     ofstream outfile;
     outfile.open(filename);
-    outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
-    for (int i = 0; i < num_keys; i++) {
-        int *idx_cell = *keys_iter;
-        Cell cell = *underl_values_iter;
+    int *idx_level = new int[NDIM+1];
 
-        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
-                << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
-                << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
+    outfile << "i,j,k,L,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
+    for (int L = 0; L <= LBASE; L++) {
+        for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+            getHindexInv(hindex, L, idx_level);
+            long int offset = (pow(2, NDIM * idx_level[NDIM]) - 1) / (pow(2, NDIM) - 1);
 
-        keys_iter++;
-        underl_values_iter++;
+            Cell cell = gpu_1d_grid[offset + hindex];
+            
+            outfile << idx_level[0] << "," << idx_level[1] << "," << idx_level[2]
+                    << "," << idx_level[4] << "," << cell.rho << "," << cell.rho_grad[0]
+                    << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
+        }
     }
     outfile.close();
 }
 
-void writeGrid(matrix_type matrix_grid, string filename) {
-    // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
-    ofstream outfile;
-    outfile.open(filename);
-    outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
-    for (auto kv : host_table) {
-        int *idx_cell = kv.first;
-        Cell cell = kv.second;
-        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
-                << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
-                << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
+// set a grid cell in the grid array and the hash table
+void setGridCell(thrust::device_vector<Cell> &gpu_1d_grid, const long int hindex, const int *idx_level) {
+    double dx, coord[3];
+    long int offset = (pow(2, NDIM * idx_level[NDIM]) - 1) / (pow(2, NDIM) - 1);
+    dx = 1.0 / pow(2, idx_level[NDIM]);
+    for (int i = 0; i < NDIM; i++) {
+        coord[i] = idx_level[i] * dx + dx / 2;
+        if (idx_level[i] > IDX_MAX) throw runtime_error("idx_level[i] >= IDX_MAX for i="+to_string(i));
     }
-    outfile.close();
+
+    if (offset + hindex >= NCELL_MAX) throw runtime_error("offset + hindex >= N_cell_max");
+    if (offset + hindex >= gpu_1d_grid.size()) throw runtime_error("offset + hindex >= gpu_1d_grid.size()");
+    Cell cell = gpu_1d_grid[offset + hindex];
+    if (!(cell == Cell())) throw runtime_error("setting existing cell");
+
+    gpu_1d_grid[offset + hindex] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, -1);
+
+    printf("HOST ");
+    cell = gpu_1d_grid[offset + hindex];
+    cell.println();
 }
 
 // initialize the base level grid
-void makeBaseGrid(matrix_type matrix_grid) {
+void makeBaseGrid(thrust::device_vector<Cell> &gpu_1d_grid) {
     int *idx_level = new int[NDIM+1];
     for (int L = 0; L <= LBASE; L++) {
-        for (int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
-            setGridCell(matrix_grid, idx_level); // cells have flag_leaf == 1 at L == LBASE == 3
+        for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+            getHindexInv(hindex, L, idx_level);
+            setGridCell(gpu_1d_grid, hindex, idx_level); // cells have flag_leaf == 1 at L == LBASE == 3
         }
     }
 };
 
-void print_cell(int *cell) {
-    string s = "";
-    for (int i = 0; i < NDIM; i++) {
-        s += "["+to_string(cell[i])+", ";
+template <typename DevicePtr>
+__global__ void printHashtable(DevicePtr gpu_1d_grid_it, size_t num_inserted) {
+    printf("GPU hashmap num_keys %d\n", num_inserted);
+
+    for (int L = 0; L <= LBASE; L++) {
+        for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+            int *idx_level = new int[NDIM+1];
+            getHindexInv(hindex, L, idx_level);
+            long int offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
+            Cell cell = gpu_1d_grid_it[offset + hindex];
+            
+            printf("GPU ");
+            print_idx_level(idx_level);
+            cell.println();
+        }
     }
-    s += to_string(cell[NDIM])+")";
-    printf(s);
 }
 
-// set a grid cell in the grid array and the hash table
-void setGridCell(matrix_type matrix_grid, 
-                 const int *idx_level, int32_t flag_leaf) {
-    if (keyExists(idx_level, host_table)) throw runtime_error("setting existing cell");
-
-    int offset;
-    double dx, coord[3];
-    offset = (pow(2, NDIM * idx_level[NDIM]) - 1) / (pow(2, NDIM) - 1);
-    dx = 1.0 / pow(2, idx_level[NDIM]);
-    for (int i = 0; i < NDIM; i++) {
-        coord[i] = idx_cell.idx3[i] * dx + dx / 2;
-        if (idx_level[i] > IDX_MAX) throw runtime_error("idx_level[i] >= IDX_MAX for i="+to_string(i));
-    }
-
-    matrix_grid[idx_level[0]][idx_level[1]][idx_level[2]][idx_level[3]][0] = rhoFunc(coord, sigma);
-    for (int i = 0; i < NDIM; i++) {
-        matrix_grid[idx_level[0]][idx_level[1]][idx_level[2]][idx_level[3]][1+i] = 0.0;
-    }
-    printf("HOST ");
-    print_cell(matrix_grid[idx_level[0]][idx_level[1]][idx_level[2]][idx_level[3]]);
-    printf("\n");
+void test_device_vector2(thrust::device_vector<Cell> vec) {
+    cout << vec[0] << endl;
 }
 
-template <typename KeyIter>
-__global__ void printHashtable(KeyIter key_iter, size_t num_keys) { // ??
-    printf("GPU hashmap num_keys %d\n", num_keys);
+void test_device_vector() {
+    // why are some of the non-2 level cells leaves?
+    // explicitly use NDIM == 3
 
-    for (int i = 0; i < num_keys; i++) {
-        int idx_level[NDIM+1] = *zipped;
-        Cell* pCell = hashtable_ref.find(idx_cell)->second; //t.get<1>();
-        
-        printf("GPU ");
-        idx_cell.print();
-        if (!pCell) printf("ERROR: accessing null cell ptr");
-        pCell->print();
-        printf("\n");
-        zipped++;
-    }
+    thrust::device_vector<Cell> vec(1);
+    vec[0] = Cell(1, 1, 1, 1, 1);
+    test_device_vector2(vec);
 }
 
 void test_gradients_baseGrid() {
     // why are some of the non-2 level cells leaves?
     // explicitly use NDIM == 3
-    matrix_type matrix_grid = new matrix_type[IDX_MAX+1][IDX_MAX+1][IDX_MAX+1][LMAX+1][NDIM+1]; // ??
+    long int num_inserted = 0;
+    for (int L = 0; L <= LBASE; L++) {
+        for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+            num_inserted++;
+        }
+    }
+
+    thrust::device_vector<Cell> gpu_1d_grid(num_inserted);
     
     cout << "Making base grid" << endl;
     
-    makeBaseGrid(matrix_grid);
-    writeGrid(matrix_grid, "grid-host.csv");
+    makeBaseGrid(gpu_1d_grid);
+    writeGrid(gpu_1d_grid, "grid-host-matrix.csv");
+
+    cout << "num_inserted " << num_inserted << endl;
+    //printf("time_calcGrad insert_values\n");
+
 
     cout << "Calculating gradients" << endl;
     auto start = high_resolution_clock::now();
 
     // run as kernel on GPU
 
-    calcGrad<<<GRID_SIZE, BLOCK_SIZE>>>(matrix_grid);
+    calcGrad<<<GRID_SIZE, BLOCK_SIZE>>>(thrust::raw_pointer_cast(gpu_1d_grid.data()), 
+                                        gpu_1d_grid.size());
 
     cudaDeviceSynchronize();
     // is this reference going to work?
-    amr_gpu::CHECK_LAST_CUDA_ERROR();
+    CHECK_LAST_CUDA_ERROR();
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
     cout << duration.count() << " ms" << endl;
     
-    writeGrid(matrix_grid, "grid-device.csv");
-    printHashtable<<<1, 1>>>(matrix_grid, matrix_grid.size());
+    writeGrid(gpu_1d_grid, "grid-device-matrix.csv");
+    printHashtable<<<1, 1>>>(gpu_1d_grid.begin(), gpu_1d_grid.size());
 }
 
 int main() {

@@ -30,42 +30,6 @@
 using namespace std;
 using namespace std::chrono;
 
-void checkLast(const char* const file, const int line)
-{
-    cudaError_t const err{cudaGetLastError()};
-    if (err != cudaSuccess)
-    {
-        std::cerr << "CUDA Runtime Error at: " << file << ":" << line
-                  << std::endl;
-        std::cerr << cudaGetErrorString(err) << std::endl;
-        // We don't exit when we encounter CUDA errors in this example.
-        // std::exit(EXIT_FAILURE);
-    }
-}
-
-// convert from transposed Hilbert index to Hilbert index
-void transposeToHilbert(const int X[NDIM], const short int L, long int &hindex) {
-    int n = 0;
-    hindex = 0;
-    for (short i = 0; i < NDIM; ++i) {
-        for (int b = 0; b < L; ++b) {
-            n = (b * NDIM) + i;
-            hindex |= (((X[NDIM-i-1] >> b) & 1) << n);
-        }
-    }
-}
-
-// convert from Hilbert index to transposed Hilbert index
-void hilbertToTranspose(const long int hindex, const int L, int (&X)[NDIM]) {
-    long int h = hindex;
-    for (short i = 0; i < NDIM; ++i) X[i] = 0;
-    for (short i = 0; i < NDIM * L; ++i) {
-        short a = (NDIM - (i % NDIM) - 1);
-        X[a] |= (h & 1) << (i / NDIM);
-        h >>= 1;
-    }
-}
-
 // compute the Hilbert index for a given 4-idx (i, j, k, L)
 void getHindex(idx4 idx_cell, long int &hindex) {
     int X[NDIM];
@@ -692,13 +656,13 @@ void test_gradients_baseGrid() {
 }
 
 
-long int time_calcGrad(int block_size, host_map &host_table, int repeat=1) {
+long int time_calcGrad(int block_size, int lbase, host_map &host_table, int repeat=1) {
     
-    printf("time_calcGrad insert_values start\n");
+    //printf("time_calcGrad insert_values start\n");
     thrust::device_vector<idx4> insert_keys(host_table.size());
     thrust::device_vector<Cell> underl_values(host_table.size());
     thrust::device_vector<Cell*> insert_values(host_table.size());
-    printf("time_calcGrad insert_values\n");
+    //printf("time_calcGrad insert_values\n");
 
     int i = 0;
     for (auto kv : host_table) {
@@ -712,7 +676,7 @@ long int time_calcGrad(int block_size, host_map &host_table, int repeat=1) {
                                                     thrust::raw_pointer_cast(underl_values.data()),
                                                     host_table.size(),
                                                     num_inserted.data().get());
-    printf("time_calcGrad insert_vector_pointers\n");
+    //printf("time_calcGrad insert_vector_pointers\n");
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
 
@@ -737,12 +701,12 @@ long int time_calcGrad(int block_size, host_map &host_table, int repeat=1) {
     CHECK_LAST_CUDA_ERROR();
 
     
-    printf("time_calcGrad contained_keys start\n");
+    //printf("time_calcGrad contained_keys start\n");
     thrust::device_vector<idx4> contained_keys(num_inserted[0]);
     thrust::device_vector<Cell*> contained_values(num_inserted[0]);
     // this is random ordered and is DIFFERENT from insert_keys order
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
-    printf("time_calcGrad contained_keys end\n");
+    //printf("time_calcGrad contained_keys end\n");
 
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
@@ -759,7 +723,7 @@ long int time_calcGrad(int block_size, host_map &host_table, int repeat=1) {
         calcGrad<<<grid_size, block_size>>>(find_ref, 
                                             contained_keys.begin(), 
                                             num_inserted[0]); // add for (50)
-        printf("time_calcGrad calcGrad end\n");
+        //printf("time_calcGrad calcGrad end\n");
 
         cudaDeviceSynchronize();
         CHECK_LAST_CUDA_ERROR();
@@ -774,7 +738,7 @@ long int time_calcGrad(int block_size, host_map &host_table, int repeat=1) {
 }
 
 void test_speed() {
-    for (int32_t lbase = 2; lbase <= 2; lbase++) {
+    for (int32_t lbase = LBASE; lbase <= LMAX; lbase++) {
 
         //cout << "START" << endl;
         host_map host_table;
@@ -785,14 +749,15 @@ void test_speed() {
         // hashtable insert values from host_table
 
         int m = 32, M = 1024;
-        long int min_kernel_time = time_calcGrad(m, host_table);
-        //cout << "STEP2" << endl;
-        long int max_kernel_time = time_calcGrad(M, host_table);
+        long int min_kernel_time = time_calcGrad(m, lbase, host_table);
+        cout << "STEP2" << endl;
+        long int max_kernel_time = time_calcGrad(M, lbase, host_table);
+        cout << "STEP3" << endl;
         long int mid_kernel_time = min_kernel_time;
-        int mid = -1;
+        int mid = m;
         while (M - m > 32 && max_kernel_time > min_kernel_time) {
             mid = (M+m)/2/32*32;
-            mid_kernel_time = time_calcGrad(mid, host_table);
+            mid_kernel_time = time_calcGrad(mid, lbase, host_table);
             if (mid_kernel_time <= min_kernel_time) {
                 m = mid;
                 min_kernel_time = mid_kernel_time;
@@ -804,12 +769,12 @@ void test_speed() {
         cout << "lbase = " << lbase << ", best kernel block size: " << mid << endl;
         if (max_kernel_time == min_kernel_time && M - m > 32)
             cout << "lbase = " << lbase << ", Same time. Min block: " << m << ", max block: " << M << endl << endl;
-        time_calcGrad(mid, host_table, 50);
+        time_calcGrad(mid, lbase, host_table, 50);
     }
 }
 
 void test_GPU_map() {
-    LBASE = 0; // override const
+    //LBASE = 0; // override const
 
     thrust::device_vector<idx4> insert_keys(1);
     thrust::device_vector<Cell> underl_values(1);

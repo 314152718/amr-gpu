@@ -28,9 +28,23 @@ using namespace std::chrono;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 #define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
 
+void checkLast(const char* const file, const int line)
+{
+    cudaError_t const err{cudaGetLastError()};
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA Runtime Error at: " << file << ":" << line
+                  << std::endl;
+        std::cerr << cudaGetErrorString(err) << std::endl;
+        // We don't exit when we encounter CUDA errors in this example.
+        // std::exit(EXIT_FAILURE);
+    }
+}
+
 // constants
-int32_t LBASE = 2; // 3; base AMR level
+const int32_t LBASE = 2; // 3; base AMR level
 const int32_t LMAX = 7; // max AMR level
+const uint32_t NCELL_MAX_ARR[LMAX+1] = {2, 16, 128, 1024, 8192, 65536, 524288, 4194304};
 
 const int32_t NDIM = 3; // number of dimensions
 // expression must have a constant value
@@ -138,7 +152,12 @@ struct Cell {
     double rho_grad[3];
     int32_t flag_leaf;
 
-    __host__ __device__ Cell() {}
+    __host__ __device__ Cell() {
+        rho = 0.0;
+        for (int i = 0; i < NDIM; i++) 
+            rho_grad[i] = 0.0;
+        flag_leaf = 0;
+    }
     __host__ __device__ Cell(double rho_init, double rho_grad_x_init, double rho_grad_y_init, double rho_grad_z_init, 
         int32_t flag_leaf_init) : rho{rho_init}, rho_grad{rho_grad_x_init, rho_grad_y_init, rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
 
@@ -158,6 +177,10 @@ struct Cell {
                 "](Leaf="+to_string(flag_leaf)+")";
     }
 };
+
+__host__ __device__ void println(Cell const &cell) {
+    cell.println();
+}
 
 // on host
 // purpose is to store size as well
@@ -192,8 +215,28 @@ __host__ __device__ Cell* empty_pcell_sentinel = nullptr;
 
 // --------------- FUNCTION DECLARATIONS ------------ //
 void checkLast(const char* const file, const int line);
-void transposeToHilbert(const int X[NDIM], const int L, long int &hindex);
-void hilbertToTranspose(const long int hindex, const int L, int (&X)[NDIM]);
+// convert from transposed Hilbert index to Hilbert index
+__host__ __device__ void transposeToHilbert(const int X[NDIM], const short int L, long int &hindex) {
+    int n = 0;
+    hindex = 0;
+    for (short i = 0; i < NDIM; ++i) {
+        for (int b = 0; b < L; ++b) {
+            n = (b * NDIM) + i;
+            hindex |= (((X[NDIM-i-1] >> b) & 1) << n);
+        }
+    }
+}
+
+// convert from Hilbert index to transposed Hilbert index
+void hilbertToTranspose(const long int hindex, const int L, int (&X)[NDIM]) {
+    long int h = hindex;
+    for (short i = 0; i < NDIM; ++i) X[i] = 0;
+    for (short i = 0; i < NDIM * L; ++i) {
+        short a = (NDIM - (i % NDIM) - 1);
+        X[a] |= (h & 1) << (i / NDIM);
+        h >>= 1;
+    }
+}
 void getHindex(idx4 idx_cell, long int &hindex);
 void getHindexInv(long int hindex, int L, idx4& idx_cell);
 double rhoFunc(const double coord[NDIM], const double sigma);
