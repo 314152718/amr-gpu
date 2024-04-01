@@ -847,7 +847,7 @@ void test_GPU_map() {
 
 int main() {
     try {
-        test_speed();
+        test_gradients_baseGrid();
     } catch  (const runtime_error& error) {
         printf(error.what());
     }

@@ -3,7 +3,6 @@
 notes.sh
 **/*.dSYM
 **/*.exe
-**/*.csv
 **/*.png
 **/*.txt
 **/*.swp

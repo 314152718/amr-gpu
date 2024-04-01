@@ -94,8 +94,7 @@ struct idx4 {
         printf("[%d, %d, %d](L=%d)", idx3[0], idx3[1], idx3[2], L);
     }
     __host__ __device__ void println() const {
-        print();
-        printf("\n");
+        printf("[%d, %d, %d](L=%d)\n", idx3[0], idx3[1], idx3[2], L);
     }
     __host__ string str() const {
         return "["+to_string(idx3[0])+", "+to_string(idx3[1])+", "+to_string(idx3[2])+"](L="+to_string(L)+")";
@@ -158,6 +157,12 @@ struct Cell {
             rho_grad[i] = 0.0;
         flag_leaf = 0;
     }
+    /*__host__ __device__ Cell(Cell &other) {
+        rho = other.rho;
+        for (int i = 0; i < NDIM; i++) 
+            rho_grad[i] = other.rho_grad[i];
+        flag_leaf = other.flag_leaf;
+    }*/
     __host__ __device__ Cell(double rho_init, double rho_grad_x_init, double rho_grad_y_init, double rho_grad_z_init, 
         int32_t flag_leaf_init) : rho{rho_init}, rho_grad{rho_grad_x_init, rho_grad_y_init, rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
 
@@ -228,7 +233,7 @@ __host__ __device__ void transposeToHilbert(const int X[NDIM], const short int L
 }
 
 // convert from Hilbert index to transposed Hilbert index
-void hilbertToTranspose(const long int hindex, const int L, int (&X)[NDIM]) {
+__host__ __device__ void hilbertToTranspose(const long int hindex, const int L, int *X) {
     long int h = hindex;
     for (short i = 0; i < NDIM; ++i) X[i] = 0;
     for (short i = 0; i < NDIM * L; ++i) {

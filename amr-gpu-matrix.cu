@@ -8,6 +8,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <sstream>
 #include <cmath>
 #include <unordered_map>
 #include <stdexcept>
@@ -82,6 +83,16 @@ __device__ void getHindexAndOffset(long int hindex_plus_offset, long int &offset
     hindex = hindex_plus_offset - offset;
 }
 
+
+__host__ __device__ void print_idx_level(int *idx_level, const char *append = "") {
+    // explicitly use NDIM == 3
+    printf("%s[%d, %d, %d](L=%d)", append, idx_level[0], idx_level[1], idx_level[2], idx_level[3]);
+}
+__host__ __device__ void print_idx_level_ptr(int *idx_level) {
+    // explicitly use NDIM == 3
+    printf("[%d, %d, %d](L=%d)", idx_level[0], idx_level[1], idx_level[2], idx_level[3]);
+}
+
 // compute the 3-index for a given Hilbert index and AMR level
 __host__ __device__ void getHindexInv(long int hindex, int L, int *idx_level) {
     int X[NDIM];
@@ -135,7 +146,8 @@ void getParentIdx(const int *idx_level, int *idx_level_parent) {
 }
 
 // compute the indices of the neighbor cells on a given face
-__host__ __device__ void getNeighborIdx(const int *idx_level, const int dir, const bool pos, int *idx_neighbor) {
+__host__ __device__ void getNeighborIdx(const int *idx_level, const int dir, const bool pos, 
+                                        int *idx_neighbor) {
     // after this getNeighborIdx is applied, must check if neighbor exists (border) !!!
     for (short i = 0; i < NDIM; i++) {
         idx_neighbor[i] = idx_level[i] + (int(pos) * 2 - 1) * int(i == dir);
@@ -162,17 +174,14 @@ template <typename DevicePtr>
 __device__ void getNeighborInfo(const int *idx_level, const int dir, const bool pos, 
                                 bool &is_ref, double &rho_neighbor, 
                                 DevicePtr gpu_1d_grid_it, size_t num_inserted) {
-    printf("getNeighborInfo start\n");
-    int *idx_neighbor = new int[NDIM+1];
+    int idx_neighbor[NDIM+1];
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
     // check if the cell is a border cell
     checkIfBorder(idx_level, dir, pos, is_border);
     // compute the index of the neighbor on the same level
-    printf("getNeighborIdx start\n");
     getNeighborIdx(idx_level, dir, pos, idx_neighbor);
     // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
-    printf("keyExists start\n");
     keyExists(idx_neighbor, num_inserted, exists); 
     is_notref = !exists && !is_border;
     is_ref = !is_notref && !is_border;
@@ -189,79 +198,59 @@ __device__ void getNeighborInfo(const int *idx_level, const int dir, const bool 
     // if the cell is a border cell, use the boundary condition
     long int neigh_offset = (pow(2, NDIM * idx_neighbor[NDIM]) - 1) / (pow(2, NDIM) - 1);
     long int neigh_hindex;
-    printf("getHindex start\n");
     getHindex(idx_neighbor, neigh_hindex);
     // not supposed to be true
     if (neigh_offset + neigh_hindex >= num_inserted) printf("ERROR: offset + hindex >= num_inserted");
 
-    printf("getNeighborInfo gpu_1d_grid_it start\n");
     Cell cell = gpu_1d_grid_it[neigh_offset + neigh_hindex];
     rho_neighbor = cell.rho * int(!is_border) + rho_boundary * int(is_border);
 }
 
 // compute the gradient for one cell
 template <typename DevicePtr>
-__device__ void calcGradCell(int *idx_level, Cell cell, DevicePtr gpu_1d_grid_it, size_t num_inserted) {
-    printf("calcGradCell start\n");
+__device__ void calcGradCell(int *idx_level, long int cell_idx, DevicePtr gpu_1d_grid_it, size_t num_inserted) {
     bool is_ref[2];
     double dx, rho[3];
     int fd_case;
 
+    Cell cell = *(gpu_1d_grid_it + cell_idx);
     dx = pow(0.5, idx_level[NDIM]);
     rho[2] = cell.rho;
 
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
-            printf("calcGradCell getNeighborInfo start\n");
             getNeighborInfo(idx_level, dir, pos, is_ref[pos], rho[pos], gpu_1d_grid_it, num_inserted);
         }
         fd_case = is_ref[0] + 2 * is_ref[1];
         cell.rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2]
-                             + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
+                            + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
     }
+    gpu_1d_grid_it[cell_idx] = cell;
 }
 
 // compute the gradient
 template <typename DevicePtr>
 __global__ void calcGrad(DevicePtr gpu_1d_grid_it, size_t num_inserted) {
-    auto gpu_1d_grid_zipped =
-        thrust::make_zip_iterator(thrust::make_tuple(gpu_1d_grid_it));
-    auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-    DevicePtr gpu_1d_grid_it2 = DevicePtr(gpu_1d_grid_it);
-    gpu_1d_grid_it += tid;
+    long int tid = threadIdx.x + blockIdx.x * blockDim.x;
 
     while (tid < num_inserted) {
         long int offset, hindex;
         int L;
         getHindexAndOffset(tid, offset, hindex, L);
-        int *idx_level;
+        int idx_level[NDIM+1];
         getHindexInv(hindex, L, idx_level);
-        printf("calcGrad print start %d %d %d %d %d\n", num_inserted, tid, threadIdx.x, blockDim.x, blockIdx.x);
-        //Cell cell = *gpu_1d_grid_it;
-        cell.println();
-        cell = *gpu_1d_grid_it;
-        cell.println();
-        printf("calcGrad calcGradCell start %d %d\n", num_inserted, tid);
-        //calcGradCell(idx_level, gpu_1d_grid_it[tid], gpu_1d_grid_it, num_inserted);
-        gpu_1d_grid_it += gridDim.x * blockDim.x;
+        printf("calcGrad print start %lu %ld %d %d %d\n", num_inserted, tid, threadIdx.x, blockDim.x, blockIdx.x);
+        calcGradCell(idx_level, tid, gpu_1d_grid_it, num_inserted);
+
         tid += gridDim.x * blockDim.x;
     }
-}
-
-__host__ __device__ void print_idx_level(int *idx_level) {
-    string s = "[";
-    for (int i = 0; i < NDIM-1; i++) {
-        s += to_string(idx_level[i])+", ";
-    }
-    s += to_string(idx_level[NDIM-1])+"](L="+to_string(idx_level[NDIM])+")\n";
-    printf(s.c_str());
 }
 
 void writeGrid(thrust::device_vector<Cell> &gpu_1d_grid, string filename) {
     // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
     ofstream outfile;
     outfile.open(filename);
-    int *idx_level = new int[NDIM+1];
+    int idx_level[NDIM+1];
 
     outfile << "i,j,k,L,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
     for (int L = 0; L <= LBASE; L++) {
@@ -272,7 +261,7 @@ void writeGrid(thrust::device_vector<Cell> &gpu_1d_grid, string filename) {
             Cell cell = gpu_1d_grid[offset + hindex];
             
             outfile << idx_level[0] << "," << idx_level[1] << "," << idx_level[2]
-                    << "," << idx_level[4] << "," << cell.rho << "," << cell.rho_grad[0]
+                    << "," << idx_level[3] << "," << cell.rho << "," << cell.rho_grad[0]
                     << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
         }
     }
@@ -303,7 +292,7 @@ void setGridCell(thrust::device_vector<Cell> &gpu_1d_grid, const long int hindex
 
 // initialize the base level grid
 void makeBaseGrid(thrust::device_vector<Cell> &gpu_1d_grid) {
-    int *idx_level = new int[NDIM+1];
+    int idx_level[NDIM+1];
     for (int L = 0; L <= LBASE; L++) {
         for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
             getHindexInv(hindex, L, idx_level);
@@ -314,11 +303,10 @@ void makeBaseGrid(thrust::device_vector<Cell> &gpu_1d_grid) {
 
 template <typename DevicePtr>
 __global__ void printHashtable(DevicePtr gpu_1d_grid_it, size_t num_inserted) {
-    printf("GPU hashmap num_keys %d\n", num_inserted);
-
+    printf("GPU hashmap num_keys %lu\n", num_inserted);
     for (int L = 0; L <= LBASE; L++) {
         for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
-            int *idx_level = new int[NDIM+1];
+            int idx_level[NDIM+1];
             getHindexInv(hindex, L, idx_level);
             long int offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
             Cell cell = gpu_1d_grid_it[offset + hindex];
@@ -343,6 +331,19 @@ void test_device_vector() {
     test_device_vector2(vec);
 }
 
+void test_upd_arr_ptr(int *ass) {
+    ass[0] = 1;
+}
+
+void test_arr_ptr() {
+    // why are some of the non-2 level cells leaves?
+    // explicitly use NDIM == 3
+
+    int *ass = new int[1];
+    test_upd_arr_ptr(ass);
+    print_idx_level_ptr(ass);
+}
+
 void test_gradients_baseGrid() {
     // why are some of the non-2 level cells leaves?
     // explicitly use NDIM == 3
@@ -364,12 +365,12 @@ void test_gradients_baseGrid() {
     //printf("time_calcGrad insert_values\n");
 
 
-    cout << "Calculating gradients" << endl;
+    cout << "\nCalculating gradients\n" << endl;
     auto start = high_resolution_clock::now();
 
     // run as kernel on GPU
 
-    calcGrad<<<GRID_SIZE, BLOCK_SIZE>>>(thrust::raw_pointer_cast(gpu_1d_grid.data()), 
+    calcGrad<<<GRID_SIZE, BLOCK_SIZE>>>(gpu_1d_grid.begin(), 
                                         gpu_1d_grid.size());
 
     cudaDeviceSynchronize();
@@ -380,7 +381,9 @@ void test_gradients_baseGrid() {
     auto duration = duration_cast<milliseconds>(stop - start);
     cout << duration.count() << " ms" << endl;
     
+    cout << endl;
     writeGrid(gpu_1d_grid, "grid-device-matrix.csv");
+    cout << endl;
     printHashtable<<<1, 1>>>(gpu_1d_grid.begin(), gpu_1d_grid.size());
 }
 
