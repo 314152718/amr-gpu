@@ -41,7 +41,7 @@ void getHindex(idx4 idx_cell, long int &hindex) {
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
         p = q - 1;
-        for (short i = X[0]; i < NDIM; i++) {
+        for (short i = 0; i < NDIM; i++) {
             if (X[i] & q ) { // invert 
                 X[0] ^= p;
             } else { // exchange
@@ -81,7 +81,7 @@ void getHindexInv(long int hindex, int L, idx4& idx_cell) {
     // Undo excess work
     for (q = 2; q != n; q <<= 1) {
         p = q - 1;
-        for (short i = NDIM - 1; i > 0; i--) {
+        for (short i = NDIM - 1; i >= 0; i--) {
             if (X[i] & q) { // invert
                 X[0] ^= p;
             } else {
@@ -237,6 +237,7 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     }
     // subtract one from the AMR level if the neighbor is not refined
     idx_neighbor.L = idx_cell.L - int(is_notref);
+
     // if the cell is a border cell, use the boundary condition
     Cell* pCell = hashtable_ref.find(idx_neighbor)->second;
     rho_neighbor = pCell->rho * int(!is_border) + rho_boundary * int(is_border);

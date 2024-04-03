@@ -47,7 +47,7 @@ __host__ __device__ void getHindex(const int *idx_level, long int &hindex) {
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
         p = q - 1;
-        for (short i = X[0]; i < NDIM; i++) {
+        for (short i = 0; i < NDIM; i++) {
             if (X[i] & q ) { // invert 
                 X[0] ^= p;
             } else { // exchange
@@ -84,7 +84,7 @@ __device__ void getHindexAndOffset(long int hindex_plus_offset, long int &hindex
 }
 
 
-__host__ __device__ void print_idx_level(int *idx_level, const char *append = "") {
+__host__ __device__ void print_idx_level(const int *idx_level, const char *append = "") {
     // explicitly use NDIM == 3
     printf("%s[%d, %d, %d](L=%d)", append, idx_level[0], idx_level[1], idx_level[2], idx_level[3]);
 }
@@ -107,7 +107,7 @@ __host__ __device__ void getHindexInv(long int hindex, int L, int *idx_level) {
     // Undo excess work
     for (q = 2; q != n; q <<= 1) {
         p = q - 1;
-        for (short i = NDIM - 1; i > 0; i--) {
+        for (short i = NDIM - 1; i >= 0; i--) {
             if (X[i] & q) { // invert
                 X[0] ^= p;
             } else {
@@ -295,6 +295,8 @@ void setGridCell(thrust::device_vector<Cell> &gpu_1d_grid, const long int hindex
     gpu_1d_grid[offset + hindex] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, -1);
 
     printf("HOST ");
+    print_idx_level(idx_level);
+    printf(" %ld %ld ", hindex, offset);
     cell = gpu_1d_grid[offset + hindex];
     cell.println();
 }
