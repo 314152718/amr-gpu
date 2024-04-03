@@ -241,6 +241,10 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     // if the cell is a border cell, use the boundary condition
     Cell* pCell = hashtable_ref.find(idx_neighbor)->second;
     rho_neighbor = pCell->rho * int(!is_border) + rho_boundary * int(is_border);
+
+    if (idx_cell == idx4(1, 1, 1, 2))
+        printf("neighbor [%d, %d, %d](L=%d) %d %f %f\n", idx_neighbor.idx3[0], idx_neighbor.idx3[1], 
+            idx_neighbor.idx3[2], idx_neighbor.L, is_border, rho_boundary, pCell->rho);
 }
 
 // compute the gradient for one cell
@@ -254,6 +258,10 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable_ref)
     dx = pow(0.5, idx_cell.L);
     rho[2] = cell->rho;
 
+    if (idx_cell == idx4(1, 1, 1, 2)) {
+        printf("\n");
+    }
+
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
             getNeighborInfo(idx_cell, dir, pos, is_ref[pos], rho[pos], hashtable_ref);
@@ -261,6 +269,9 @@ __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable_ref)
         fd_case = is_ref[0] + 2 * is_ref[1];
         cell->rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2]
                              + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
+        if (idx_cell == idx4(1, 1, 1, 2)) {
+            printf("%d %f %f %f\n", dir, rho[0], rho[1], rho[2]);
+        }
     }
 }
 

@@ -44,6 +44,7 @@ __host__ __device__ void getHindex(const int *idx_level, long int &hindex) {
     }
     short int L = idx_level[NDIM];
     uint16 m = 1 << (L - 1), p, q, t;
+    printf("getHindex_start X %d %d %d\n", X[0], X[1], X[2]);
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
         p = q - 1;
@@ -57,6 +58,9 @@ __host__ __device__ void getHindex(const int *idx_level, long int &hindex) {
             }
         }
     }
+    
+    printf("getHindex_middle X %d %d %d\n", X[0], X[1], X[2]);
+
     // Gray encode
     for (short i = 1; i < NDIM; i++) {
         X[i] ^= X[i-1];
