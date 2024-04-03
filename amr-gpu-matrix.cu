@@ -47,7 +47,7 @@ __host__ __device__ void getHindex(const int *idx_level, long int &hindex) {
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
         p = q - 1;
-        for(short i = X[0]; i < NDIM; i++) {
+        for (short i = X[0]; i < NDIM; i++) {
             if (X[i] & q ) { // invert 
                 X[0] ^= p;
             } else { // exchange
@@ -77,7 +77,7 @@ __device__ double log(double x, double base) {
     return log(x) / log(base);
 }
 
-__device__ void getHindexAndOffset(long int hindex_plus_offset, long int &offset, long int &hindex, int &L) {
+__device__ void getHindexAndOffset(long int hindex_plus_offset, long int &hindex, long int &offset, int &L) {
     L = floor(log(hindex_plus_offset*(pow(2, NDIM) - 1) + 1, pow(2, NDIM)) + EPS);
     offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
     hindex = hindex_plus_offset - offset;
@@ -107,16 +107,17 @@ __host__ __device__ void getHindexInv(long int hindex, int L, int *idx_level) {
     // Undo excess work
     for (q = 2; q != n; q <<= 1) {
         p = q - 1;
+        for (short i = NDIM - 1; i > 0; i--) {
+            if (X[i] & q) { // invert
+                X[0] ^= p;
+            } else {
+                t = (X[0]^X[i]) & p;
+                X[0] ^= t;
+                X[i] ^= t;
+            }
+        } 
     }
-    for (short i = NDIM - 1; i > 0; i--) {
-        if(X[i] & q) { // invert
-            X[0] ^= p;
-        } else {
-            t = (X[0]^X[i]) & p;
-            X[0] ^= t;
-            X[i] ^= t;
-        }
-    } // exchange
+    // exchange
     for (int i = 0; i < NDIM; i++) {
         idx_level[i] = X[i];
     }
@@ -166,6 +167,14 @@ __device__ void keyExists(const int *idx_level, size_t num_inserted, bool &res) 
     getHindex(idx_level, hindex);
     long int offset = (pow(2, NDIM * idx_level[NDIM]) - 1) / (pow(2, NDIM) - 1);
     res = 0 <= offset + hindex && offset + hindex < num_inserted;
+}
+
+__device__ bool equals(const int *idx_level, const int *idx_other) {
+    bool res = true;
+    for (int i = 0; i < NDIM+1; i++) {
+        res = res && idx_level[i] == idx_other[i];
+    }
+    return res;
 }
 
 // get information about the neighbor cell necessary for computing the gradient
@@ -236,7 +245,7 @@ __global__ void calcGrad(DevicePtr gpu_1d_grid_it, size_t num_inserted) {
     while (tid < num_inserted) {
         long int offset, hindex;
         int L;
-        getHindexAndOffset(tid, offset, hindex, L);
+        getHindexAndOffset(tid, hindex, offset, L);
         int idx_level[NDIM+1];
         getHindexInv(hindex, L, idx_level);
         printf("calcGrad print start %lu %ld %d %d %d\n", num_inserted, tid, threadIdx.x, blockDim.x, blockIdx.x);
@@ -311,8 +320,15 @@ __global__ void printHashtable(DevicePtr gpu_1d_grid_it, size_t num_inserted) {
             long int offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
             Cell cell = gpu_1d_grid_it[offset + hindex];
             
+            //long int hindex2;
+            //getHindex(idx_level, hindex2);
+            //long int offset3, hindex3;
+            //int L3;
+            //getHindexAndOffset(hindex+offset, hindex3, offset3, L3);
+            
             printf("GPU ");
             print_idx_level(idx_level);
+            printf(" %ld %ld ", hindex, offset);
             cell.println();
         }
     }
@@ -342,6 +358,28 @@ void test_arr_ptr() {
     int *ass = new int[1];
     test_upd_arr_ptr(ass);
     print_idx_level_ptr(ass);
+}
+
+void test_hindex_funcs() {
+    for (int L = 0; L <= LBASE; L++) {
+        long int offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
+        for (int i = 0; i < pow(2, L); i++) {
+            for (int j = 0; j < pow(2, L); j++) {
+                for (int k = 0; k < pow(2, L); k++) {
+                    long int hindex, hindex2;
+                    int idx_level[4] = {i, j, k, L};
+                    getHindex(idx_level, hindex);
+                    int X[NDIM];
+                    hilbertToTranspose(hindex, L, X);
+                    transposeToHilbert(X, L, hindex2);
+
+                    getHindexInv(hindex, L, idx_level);
+                    cout << i << " " << j << " " << k << " " << L << "  " << idx_level[0] << " " << idx_level[1] << " " << 
+                        idx_level[2] << " " << idx_level[3] << "  " << hindex << " " << hindex2 << " " << offset << endl;
+                }
+            }
+        }
+    }
 }
 
 void test_gradients_baseGrid() {

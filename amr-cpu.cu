@@ -114,16 +114,16 @@ void getHindexInv(int hindex, int L, idx4& idx_cell) {
     // Undo excess work
     for (q = 2; q != n; q <<= 1) {
         p = q - 1;
-    }
-    for (short i = N_dim - 1; i > 0; i--) {
-        if(X[i] & q) { // invert
-            X[0] ^= p;
-        } else {
-            t = (X[0]^X[i]) & p;
-            X[0] ^= t;
-            X[i] ^= t;
+        for (short i = N_dim - 1; i > 0; i--) {
+            if(X[i] & q) { // invert
+                X[0] ^= p;
+            } else {
+                t = (X[0]^X[i]) & p;
+                X[0] ^= t;
+                X[i] ^= t;
+            }
         }
-    } // exchange
+    }// exchange
     for (short i = 0; i < N_dim; i++) {
         idx_cell.idx3[i] = X[i];
     }
