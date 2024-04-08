@@ -316,6 +316,7 @@ void writeGrid(host_map &host_table, string filename) {
 }
 
 // initialize the base level grid
+// dont do lbase=LBASE -- redefinition of default arg
 void makeBaseGrid(host_map &host_table, int32_t lbase) {
     idx4 idx_cell;
     for (int L = 0; L <= lbase; L++) {
@@ -341,7 +342,7 @@ void setGridCell(const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
     }
 
     // linear 1d index of all cells
-    if (offset + hindex >= NCELL_MAX) throw runtime_error("offset () + hindex >= N_cell_max");
+    if (offset + hindex >= NCELL_MAX) throw runtime_error("offset + hindex >= NCELL_MAX");
     
     host_table[idx_cell] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, flag_leaf);
     //printf("HOST ");
@@ -432,6 +433,7 @@ __global__ void insert(Map map_ref,
                        size_t num_keys,
                        int* num_inserted) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+    //printf("%lu\n", num_keys);
  
     size_t counter = 0;
     while (tid < num_keys) {
@@ -657,8 +659,10 @@ void test_gradients_baseGrid() {
 }
 
 
-long int time_calcGrad(int block_size, int lbase, host_map &host_table, int repeat=1) {
-    
+long int time_calcGrad(int block_size, int lbase, host_map &host_table, unordered_map<int, long int> &times, int repeat=1) {
+    if (repeat <= 1 && times.find(block_size) != times.end()) 
+        return times.find(block_size)->second;
+
     //printf("time_calcGrad insert_values start\n");
     thrust::device_vector<idx4> insert_keys(host_table.size());
     thrust::device_vector<Cell> underl_values(host_table.size());
@@ -714,6 +718,7 @@ long int time_calcGrad(int block_size, int lbase, host_map &host_table, int repe
 
     auto find_ref = hashtable.ref(cuco::find);
     auto grid_size = (NCELL_MAX + block_size - 1) / block_size;
+    printf("num threads: %ld\n", grid_size*block_size);
 
     auto duration = duration_cast<microseconds>(high_resolution_clock::now() - high_resolution_clock::now());
     for (int i = 0; i < repeat; i++) {
@@ -739,7 +744,7 @@ long int time_calcGrad(int block_size, int lbase, host_map &host_table, int repe
 }
 
 void test_speed() {
-    for (int32_t lbase = LBASE; lbase <= LMAX; lbase++) {
+    for (int32_t lbase = LMAX; lbase <= LMAX; lbase++) {
 
         //cout << "START" << endl;
         host_map host_table;
@@ -750,27 +755,54 @@ void test_speed() {
         // hashtable insert values from host_table
 
         int m = 32, M = 1024;
-        long int min_kernel_time = time_calcGrad(m, lbase, host_table);
-        cout << "STEP2" << endl;
-        long int max_kernel_time = time_calcGrad(M, lbase, host_table);
-        cout << "STEP3" << endl;
-        long int mid_kernel_time = min_kernel_time;
+        unordered_map<int, long int> times;
+        long int min_kernel_time = time_calcGrad(m, lbase, host_table, times);
+        //cout << "STEP2" << endl;
+        long int max_kernel_time = time_calcGrad(M, lbase, host_table, times);
+        //cout << "STEP3" << endl;
+        long int min_time = min_kernel_time;
+        long int max_time = max_kernel_time;
+
+        long int mid_time = min_time;
+        long int mid_up_time, mid_down_time;
         int mid = m;
-        while (M - m > 32 && max_kernel_time > min_kernel_time) {
+        
+        mid = (M+m)/2/32*32;
+        mid_up_time = time_calcGrad(mid+32, lbase, host_table, times);
+        mid_down_time = time_calcGrad(mid-32, lbase, host_table, times);
+
+        while (M - m > 64 && mid_up_time != mid_down_time) {
             mid = (M+m)/2/32*32;
-            mid_kernel_time = time_calcGrad(mid, lbase, host_table);
-            if (mid_kernel_time <= min_kernel_time) {
-                m = mid;
-                min_kernel_time = mid_kernel_time;
-            } else {
+            mid_time = time_calcGrad(mid, lbase, host_table, times);
+            mid_up_time = time_calcGrad(mid+32, lbase, host_table, times);
+            mid_down_time = time_calcGrad(mid-32, lbase, host_table, times);
+            if (mid_up_time == mid_down_time) {
+                if (mid_time > mid_up_time) {
+                    printf("ERROR: local max found instead\n");
+                }
+                break;
+            } 
+            if (mid_up_time > mid_down_time) {
                 M = mid;
-                max_kernel_time = mid_kernel_time;
+                max_time = mid_time;
+            } else {
+                m = mid;
+                min_time = mid_time;
             }
         }
-        cout << "lbase = " << lbase << ", best kernel block size: " << mid << endl;
-        if (max_kernel_time == min_kernel_time && M - m > 32)
-            cout << "lbase = " << lbase << ", Same time. Min block: " << m << ", max block: " << M << endl << endl;
-        time_calcGrad(mid, lbase, host_table, 50);
+        if (mid_time > min_time) {
+            mid = m;
+            mid_time = min_time;
+        }
+        if (mid_time > max_time) {
+            mid = M;
+            mid_time = max_time;
+        }
+        cout << "lbase = " << lbase << ", best kernel block size: " << mid << " time: " << mid_time << " ms" << endl;
+        if (max_kernel_time == min_kernel_time)
+            cout << "lbase = " << lbase << ", Same time. Min block: " << m << ", max block: " << M << endl;
+        //time_calcGrad(mid, lbase, host_table, times, 5);
+        cout << endl << endl;
     }
 }
 
@@ -847,8 +879,9 @@ void test_GPU_map() {
 }
 
 int main() {
+    printf("amr gpu hashtable\n");
     try {
-        test_gradients_baseGrid();
+        test_speed();
     } catch  (const runtime_error& error) {
         printf(error.what());
     }

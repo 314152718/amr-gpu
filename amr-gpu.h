@@ -43,13 +43,15 @@ void checkLast(const char* const file, const int line)
 
 // constants
 const int32_t LBASE = 2; // 3; base AMR level
-const int32_t LMAX = 7; // max AMR level
-const uint32_t NCELL_MAX_ARR[LMAX+1] = {2, 16, 128, 1024, 8192, 65536, 524288, 4194304};
+const int32_t LMAX = 9; // max AMR level
 
 const int32_t NDIM = 3; // number of dimensions
 // expression must have a constant value
-constexpr uint32_t NCELL_MAX = 4194304; //2147483648; (10) // 2097152 + 10; 
-//2*2^15 = 70368744177664; // lround(2*pow(2, LMAX*NDIM)); <- dont work
+
+// lround(2*pow(2, LMAX*NDIM)); <- dont work
+// {2, 16, 128, 1024, 8192, 65536, 524288, 4194304, 33554432, 268435456};
+constexpr uint32_t NCELL_MAX = 268435456; //2147483648; (10) // 2097152 + 10; 
+//2*2^15 = 70368744177664; 
 
 const int32_t IDX_MAX = pow(2, LMAX) - 1;
 const __device__ double FD_KERNEL[4][4] = {
@@ -62,7 +64,7 @@ const __host__ __device__ int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // ha
 const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
 const double sigma = 0.01; // std of Gaussian density field
-const double EPS = 0.000001;
+const double EPS = 1E-12; // 1e-6 is too large for level 7 in getHindexAndOffset
 const double STEP_EPS = 0.00001;
 
 // GPU consts

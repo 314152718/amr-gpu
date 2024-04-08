@@ -74,7 +74,7 @@ void getHindex(idx4 idx_cell, int& hindex) {
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
         p = q - 1;
-        for(short i = X[0]; i < N_dim; i++) {
+        for(short i = 0; i < N_dim; i++) {
             if (X[i] & q ) { // invert 
                 X[0] ^= p;
             } else { // exchange
@@ -114,7 +114,7 @@ void getHindexInv(int hindex, int L, idx4& idx_cell) {
     // Undo excess work
     for (q = 2; q != n; q <<= 1) {
         p = q - 1;
-        for (short i = N_dim - 1; i > 0; i--) {
+        for (short i = N_dim - 1; i >= 0; i--) {
             if(X[i] & q) { // invert
                 X[0] ^= p;
             } else {
