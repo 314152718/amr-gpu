@@ -223,6 +223,10 @@ __device__ void getNeighborInfo(const int *idx_level, const int dir, const bool 
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
     // if the neighbor is not refined, set the neighbor index to the index of the parent cell's neighbor
     // if the neighbor is refined, don't change the neighbor index
+    if (is_notref)
+        printf("is_notref %d ni %d nj %d nk %d exists %d is_border %d  i %d j %d k %d\n", is_notref, idx_neighbor[0], 
+            idx_neighbor[1], idx_neighbor[2], exists, is_border, idx_level[0], idx_level[1], idx_level[2]);
+
     for (short i = 0; i < NDIM; i++) {
         idx1_parent_neighbor = idx_level[i] / 2 + (int(pos) * 2 - 1) * int(i == dir);
         idx_neighbor[i] = idx_level[i] * int(is_border) + idx_neighbor[i] * int(is_ref) 
@@ -230,8 +234,6 @@ __device__ void getNeighborInfo(const int *idx_level, const int dir, const bool 
     }
     // subtract one from the AMR level if the neighbor is not refined
     idx_neighbor[NDIM] = idx_level[NDIM] - int(is_notref);
-    if (is_notref)
-        printf("is_notref %d\n", is_notref);
     if (idx_neighbor[NDIM] > LMAX) {
         print_idx_level(idx_neighbor);
         printf("\nERROR: getNeighborInfo L > LMAX; L %d\n", idx_neighbor[NDIM]);
@@ -240,16 +242,27 @@ __device__ void getNeighborInfo(const int *idx_level, const int dir, const bool 
     long int neigh_offset = (pow(2, NDIM * idx_neighbor[NDIM]) - 1) / (pow(2, NDIM) - 1);
     long int neigh_index;
     getIndex(idx_neighbor, neigh_index);
+    
     // not supposed to be true
     if (neigh_offset + neigh_index >= num_inserted) {
         print_idx_level(idx_neighbor);
         printf("\nERROR: offset + index >= num_inserted; neigh_offset %ld neigh_index %ld num_inserted %lu", 
             neigh_offset, neigh_index, num_inserted);
     }
-    if (equals(idx_level, idx_) )
 
     Cell cell = gpu_1d_grid_it[neigh_offset + neigh_index];
     rho_neighbor = cell.rho * int(!is_border) + rho_boundary * int(is_border);
+
+    long int index;
+    getIndex(idx_level, index);
+
+    int val[4] = {1, 1, 1, 2};
+    //printf("equals: %d  dir %d pos %d  i %d j %d k %d L %d  index %ld", equals(idx_level, val), idx_level[0], idx_level[1], 
+    //    idx_level[2], idx_level[3], index);
+    if (equals(idx_level, val)) {
+        printf("cell 1 1 1 2; idx_neighbor i %d j %d k %d L %d  dir %d pos %d rho_neighbor %f\n", idx_neighbor[0], idx_neighbor[1],
+            idx_neighbor[2], idx_neighbor[3], dir, pos, rho_neighbor);
+    }
 }
 
 // compute the gradient for one cell
@@ -259,6 +272,10 @@ __device__ void calcGradCell(int *idx_level, long int cell_idx, DevicePtr gpu_1d
     double dx, rho[3];
     int fd_case;
 
+    int val[4] = {1, 1, 1, 2};
+    if (equals(idx_level, val)) {
+        printf("cell 1 1 1 2; calcGradCell0 index %ld \n", cell_idx);
+    }
     Cell cell = *(gpu_1d_grid_it + cell_idx);
     dx = pow(0.5, idx_level[NDIM]);
     rho[2] = cell.rho;
@@ -270,6 +287,10 @@ __device__ void calcGradCell(int *idx_level, long int cell_idx, DevicePtr gpu_1d
         fd_case = is_ref[0] + 2 * is_ref[1];
         cell.rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2]
                             + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
+        if (equals(idx_level, val)) {
+            printf("cell 1 1 1 2; calcGradCell dir %d rho0 %.2f rho1 %.2f rho2 %.2f fd_case %d \n", dir, rho[0], rho[1], rho[2], 
+                fd_case);
+        }
     }
     gpu_1d_grid_it[cell_idx] = cell;
 }
@@ -282,16 +303,20 @@ __global__ void calcGrad(DevicePtr gpu_1d_grid_it, int L, size_t num_inserted) {
     long int offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
 
     while (tid < num_inserted) {
-        long int index;
-        int idx_level[NDIM+1];
-        getIndexInv(index, L, idx_level);
+        long int index = tid - offset;
+        if (index >= 0) {
+            int idx_level[NDIM+1];
+            getIndexInv(index, L, idx_level);
 
-        if (idx_level[NDIM] > LMAX) {
-            print_idx_level(idx_level);
-            printf("\nERROR: calcGrad L > LMAX; L %d\n", idx_level[NDIM]);
-            printf("calcGrad print start %lu %ld %ld %ld %d\n", num_inserted, tid, index, offset, L);
+            for (int i = 0; i < NDIM; i++) {
+                if (idx_level[i] >= pow(2, L) || idx_level[i] < 0) {
+                    print_idx_level(idx_level);
+                    printf("\nERROR: calcGrad idx_level[%d] out of bounds; idx_level[%d] %d\n", i, i, idx_level[i]);
+                    printf("calcGrad print start %lu %ld %ld %ld %d\n", num_inserted, tid, tid, offset, L);
+                }
+            }
+            calcGradCell(idx_level, tid, gpu_1d_grid_it, num_inserted);
         }
-        calcGradCell(idx_level, tid, gpu_1d_grid_it, num_inserted);
 
         tid += gridDim.x * blockDim.x;
     }
