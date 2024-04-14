@@ -43,7 +43,7 @@ void checkLast(const char* const file, const int line)
 
 // constants
 const int32_t LBASE = 2; // 3; base AMR level
-const int32_t LMAX = 9; // max AMR level
+const int32_t LMAX = 7; // max AMR level
 
 const int32_t NDIM = 3; // number of dimensions
 // expression must have a constant value
