@@ -892,7 +892,13 @@ void test_GPU_map() {
 int main() {
     printf("amr gpu hashtable\n");
     try {
+        if (NCELL_MAX != lround(2*pow(2, LMAX*NDIM))) {
+            throw runtime_error("NCELL_MAX != 2*2^(LMAX*NDIM); NCELL_MAX "+to_string(NCELL_MAX)+" 2*2^(LMAX*NDIM) "
+                +to_string(lround(2*pow(2, LMAX*NDIM))));
+        }
+
         test_speed();
+        
     } catch  (const runtime_error& error) {
         printf(error.what());
     }

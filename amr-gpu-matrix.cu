@@ -342,7 +342,7 @@ void setGridCell(thrust::device_vector<Cell> &gpu_1d_grid, const long int hindex
     dx = 1.0 / pow(2, idx_level[NDIM]);
     for (int i = 0; i < NDIM; i++) {
         coord[i] = idx_level[i] * dx + dx / 2;
-        if (idx_level[i] > IDX_MAX) throw runtime_error("idx_level[i] >= IDX_MAX for i="+to_string(i));
+        if (idx_level[i] > NCELL_MAX) throw runtime_error("idx_level[i] >= NCELL_MAX for i="+to_string(i));
     }
 
     if (hindex >= NCELL_MAX) throw runtime_error("hindex >= N_cell_max");
@@ -573,7 +573,13 @@ void test_gradients_baseGrid() {
 int main() {
     printf("amr gpu matrix\n");
     try {
+        if (NCELL_MAX != lround(2*pow(2, LMAX*NDIM))) {
+            throw runtime_error("NCELL_MAX != 2*2^(LMAX*NDIM); NCELL_MAX "+to_string(NCELL_MAX)+" 2*2^(LMAX*NDIM) "
+                +to_string(lround(2*pow(2, LMAX*NDIM))));
+        }
+
         test_speed();
+        
     } catch  (const runtime_error& error) {
         printf(error.what());
     }
