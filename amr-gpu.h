@@ -247,7 +247,7 @@ __host__ __device__ void hilbertToTranspose(const long int hindex, const int L, 
 void getHindex(idx4 idx_cell, long int &hindex);
 void getHindexInv(long int hindex, int L, idx4& idx_cell);
 double rhoFunc(const double coord[NDIM], const double sigma);
-bool refCrit(double rho);
+bool refCrit(double rho); 
 __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
 bool keyExists(const idx4& idx_cell, host_map &host_table);
 template <typename Map>
