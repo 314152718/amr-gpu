@@ -97,6 +97,25 @@ void getHindexInv(long int hindex, int L, idx4& idx_cell) {
     idx_cell.L = L;
 }
 
+__host__ __device__ void getIndexInv(long int index, int L, int *idx_level) {
+    for (int dim = 0; dim < NDIM; dim++) {
+        long int scale = (long int)pow(2, (NDIM-1-dim)*L);
+        idx_level[dim] = int(index / scale);
+        index %= scale;
+    }
+    idx_level[NDIM] = L;
+}
+
+__host__ __device__ void getIndex(const int *idx_level, long int &index) {
+    long int scale = 1;
+    index = 0;
+    for (int dim = NDIM-1; dim >= 0; dim--) {
+        index += scale * idx_level[dim];
+        //printf("index %ld scale %ld\n", index, scale);
+        scale *= int(pow(2, idx_level[NDIM]));
+    }
+}
+
 // multi-variate Gaussian distribution
 /*double rhoFunc(const double coordMid[NDIM], const double cellSide, const double sigma) { // change back
     //int n = round(cellSide / STEP_EPS); // 100 000
@@ -230,6 +249,12 @@ __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool p
     // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
     // if the neighbor is not refined, set the neighbor index to the index of the parent cell's neighbor
     // if the neighbor is refined, don't change the neighbor index
+
+    if (is_notref)
+        printf("is_notref %d ni %d nj %d nk %d exists %d is_border %d  i %d j %d k %d\n", is_notref, idx_neighbor.idx3[0], 
+            idx_neighbor.idx3[1], idx_neighbor.idx3[2], exists, is_border, idx_cell.idx3[0], idx_cell.idx3[1], 
+            idx_cell.idx3[2]);
+
     for (short i = 0; i < NDIM; i++) {
         idx1_parent_neighbor = idx_cell.idx3[i] / 2 + (int(pos) * 2 - 1) * int(i == dir);
         idx_neighbor.idx3[i] = idx_cell.idx3[i] * int(is_border) + idx_neighbor.idx3[i] * int(is_ref) 
@@ -336,17 +361,26 @@ void makeBaseGrid(host_map &host_table, int32_t lbase) {
             setGridCell(idx_cell, hindex, L == lbase, host_table); // cells have flag_leaf == 1 at L == lbase == 3
         }
     }
-};
+}
+
+void make1lvlGrid(host_map &host_table, int32_t L) {
+    idx4 idx_cell;
+    for (long int hindex = 0; hindex < pow(2, NDIM * L); hindex++) {
+        getHindexInv(hindex, L, idx_cell);
+        setGridCell(idx_cell, hindex, true, host_table, false); // cells have flag_leaf == 1 at L == lbase == 3
+    }
+}
 
 // set a grid cell in the grid array and the hash table
 void setGridCell(const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
-                 host_map &host_table) {
+                 host_map &host_table, bool to_offset) {
     if (keyExists(idx_cell, host_table)) throw runtime_error("setting existing cell");
 
-    int offset;
+    int offset = 0;
+    if (to_offset)
+        offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
     // explicitly use NDIM == 3
     double dx, coord[3];
-    offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
     dx = 1.0 / pow(2, idx_cell.L);
     for (int i = 0; i < NDIM; i++) {
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
@@ -582,7 +616,7 @@ void test_gradients_baseGrid() {
     
     cout << "Making base grid" << endl;
     
-    makeBaseGrid(host_table);
+    make1lvlGrid(host_table, LBASE);
 
     /*const int num_ref = LMAX - LBASE;
     cout << "Refining grid levels" << endl;
@@ -670,9 +704,7 @@ void test_gradients_baseGrid() {
 }
 
 
-long int time_calcGrad(int block_size, int lbase, host_map &host_table, unordered_map<int, long int> &times, int repeat=1) {
-    if (repeat <= 1 && times.find(block_size) != times.end()) 
-        return times.find(block_size)->second;
+long int time_calcGrad(int block_size, int L, host_map &host_table, int repeat=1) {
 
     //printf("time_calcGrad insert_values start\n");
     thrust::device_vector<idx4> insert_keys(host_table.size());
@@ -755,66 +787,27 @@ long int time_calcGrad(int block_size, int lbase, host_map &host_table, unordere
 }
 
 void test_speed() {
-    for (int32_t lbase = LMAX; lbase <= LMAX; lbase++) {
+    auto start0 = high_resolution_clock::now();
+    auto start = start0;
 
-        //cout << "START" << endl;
-        host_map host_table;
-        
-        makeBaseGrid(host_table, lbase);
-        //cout << "STEP1" << endl;
+    int L = LMAX;
+    host_map host_table;
+    
+    make1lvlGrid(host_table, L);
 
-        // hashtable insert values from host_table
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    start = high_resolution_clock::now();
+    cout << "Time after make1lvlGrid: " << duration.count()/1000.0 << " ms" << endl;
 
-        int m = 32, M = 1024;
-        unordered_map<int, long int> times;
-        long int min_kernel_time = time_calcGrad(m, lbase, host_table, times);
-        //cout << "STEP2" << endl;
-        long int max_kernel_time = time_calcGrad(M, lbase, host_table, times);
-        //cout << "STEP3" << endl;
-        long int min_time = min_kernel_time;
-        long int max_time = max_kernel_time;
-
-        long int mid_time = min_time;
-        long int mid_up_time, mid_down_time;
-        int mid = m;
-        
-        mid = (M+m)/2/32*32;
-        mid_up_time = time_calcGrad(mid+32, lbase, host_table, times);
-        mid_down_time = time_calcGrad(mid-32, lbase, host_table, times);
-
-        while (M - m > 64 && mid_up_time != mid_down_time) {
-            mid = (M+m)/2/32*32;
-            mid_time = time_calcGrad(mid, lbase, host_table, times);
-            mid_up_time = time_calcGrad(mid+32, lbase, host_table, times);
-            mid_down_time = time_calcGrad(mid-32, lbase, host_table, times);
-            if (mid_up_time == mid_down_time) {
-                if (mid_time > mid_up_time) {
-                    printf("ERROR: local max found instead\n");
-                }
-                break;
-            } 
-            if (mid_up_time > mid_down_time) {
-                M = mid;
-                max_time = mid_time;
-            } else {
-                m = mid;
-                min_time = mid_time;
-            }
-        }
-        if (mid_time > min_time) {
-            mid = m;
-            mid_time = min_time;
-        }
-        if (mid_time > max_time) {
-            mid = M;
-            mid_time = max_time;
-        }
-        cout << "lbase = " << lbase << ", best kernel block size: " << mid << " time: " << mid_time << " ms" << endl;
-        if (max_kernel_time == min_kernel_time)
-            cout << "lbase = " << lbase << ", Same time. Min block: " << m << ", max block: " << M << endl;
-        //time_calcGrad(mid, lbase, host_table, times, 5);
-        cout << endl << endl;
-    }
+    int block_size = 512;
+    cout << "L = " << L << ", block size " << block_size << endl;
+    time_calcGrad(block_size, L, host_table, 5);
+    cout << endl;
+    
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start0);
+    cout << "Total time: " << duration.count()/1000.0 << " ms" << endl;
 }
 
 void test_GPU_map() {
@@ -897,7 +890,7 @@ int main() {
                 +to_string(lround(2*pow(2, LMAX*NDIM))));
         }
 
-        test_speed();
+        test_gradients_baseGrid();
         
     } catch  (const runtime_error& error) {
         printf(error.what());

@@ -337,20 +337,73 @@ void writeGrid(thrust::device_vector<Cell> &gpu_1d_grid, string filename, int L)
 }
 
 // set a grid cell in the grid array and the hash table
-void setGridCell(thrust::device_vector<Cell> &gpu_1d_grid, const long int index, const int *idx_level) {
+void setGridCell(auto gpu_1d_grid_ptr, const long int index, const int *idx_level, size_t num_inserted) {
+    auto start0 = high_resolution_clock::now();
+    auto start = start0;
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+
     double dx, coord[3];
     dx = 1.0 / pow(2, idx_level[NDIM]);
+
+    if (index == 0 || index == 100 || index == 200) {
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "index = " << index << ", time for dx: " << duration.count()/1000.0 << " ms" << endl;
+    }
+
     for (int i = 0; i < NDIM; i++) {
         coord[i] = idx_level[i] * dx + dx / 2;
         if (idx_level[i] > NCELL_MAX) throw runtime_error("idx_level[i] >= NCELL_MAX for i="+to_string(i));
     }
+    
+    if (index == 0 || index == 100 || index == 200) {
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "index = " << index << ", time for coord: " << duration.count()/1000.0 << " ms" << endl;
+    }
 
     if (index >= NCELL_MAX) throw runtime_error("index >= N_cell_max");
-    if (index >= gpu_1d_grid.size()) throw runtime_error("index >= gpu_1d_grid.size()");
-    Cell cell = gpu_1d_grid[index];
+    if (index >= num_inserted) throw runtime_error("index >= gpu_1d_grid.size()");
+
+    if (index == 0 || index == 100 || index == 200) {
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "index = " << index << ", time for basic compars: " << duration.count()/1000.0 << " ms" << endl;
+    }
+
+    if (index == 0 || index == 100 || index == 200) {
+        start = high_resolution_clock::now();
+    }
+    Cell cell = *gpu_1d_grid_ptr;
+    if (index == 0 || index == 100 || index == 200) {
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "index = " << index << ", time for getting a cell: " << duration.count()/1000.0 << " ms" << endl;
+    }
     if (!(cell == Cell())) throw runtime_error("setting existing cell");
 
-    gpu_1d_grid[index] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, -1);
+    if (index == 0 || index == 100 || index == 200) {
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "index = " << index << ", time for comparing cells: " << duration.count()/1000.0 << " ms" << endl;
+    }
+
+
+    *gpu_1d_grid_ptr = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, -1);
+
+    if (index == 0 || index == 100 || index == 200) {
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        cout << "index = " << index << ", time for setting a cell: " << duration.count()/1000.0 << " ms" << endl;
+        duration = duration_cast<microseconds>(stop - start0);
+        cout << "index = " << index << ", total time inside setGridCell: " << duration.count()/1000.0 << " ms" << endl;
+    }
 
     /*printf("HOST ");
     print_idx_level(idx_level);
@@ -362,6 +415,11 @@ void setGridCell(thrust::device_vector<Cell> &gpu_1d_grid, const long int index,
 // initialize the base level grid
 void makeBaseGrid(thrust::device_vector<Cell> &gpu_1d_grid, int L) {
     int idx_level[NDIM+1];
+    auto start = high_resolution_clock::now();
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+
+    auto gpu_1d_grid_ptr = gpu_1d_grid.begin();
     for (long int index = 0; index < pow(2, NDIM * L); index++) {
         getIndexInv(index, L, idx_level);
 
@@ -369,7 +427,19 @@ void makeBaseGrid(thrust::device_vector<Cell> &gpu_1d_grid, int L) {
             print_idx_level(idx_level);
             printf("\nERROR: makeBaseGrid L > LMAX; L %d\n", idx_level[NDIM]);
         }
-        setGridCell(gpu_1d_grid, index, idx_level); // cells have flag_leaf == 1 at L == LBASE == 3
+
+        if (index == 0 || index == 100 || index == 200) {
+            start = high_resolution_clock::now();
+        }
+
+        setGridCell(gpu_1d_grid_ptr, index, idx_level, gpu_1d_grid.size()); // cells have flag_leaf == 1 at L == LBASE == 3
+
+        if (index == 0 || index == 100 || index == 200) {
+            stop = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(stop - start);
+            cout << "index = " << index << ", time for setGridCell: " << duration.count()/1000.0 << " ms" << endl;
+        }
+        gpu_1d_grid_ptr++;
     }
 };
 
@@ -435,10 +505,29 @@ void test_index_funcs() {
     }
 }
 
-long int time_calcGrad(int block_size, int L, thrust::device_vector<Cell> &gpu_1d_grid, 
-                       unordered_map<int, long int> &times, int repeat=1) {
-    if (repeat <= 1 && times.find(block_size) != times.end()) 
-        return times.find(block_size)->second;
+void test_device_vector_speed() {
+    int L = LMAX;
+    long int num_inserted = pow(2, NDIM * L);
+    thrust::device_vector<Cell> gpu_1d_grid(num_inserted);
+    thrust::device_vector<double> double_arr_grid(num_inserted);
+
+    for (int i = 0; i < 50; i++) {
+        auto start = high_resolution_clock::now();
+        gpu_1d_grid[num_inserted/2] = Cell();
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(stop - start);
+        cout << "Cell set time " << duration.count()/1000.0 << " ms" << endl;
+
+
+        start = high_resolution_clock::now();
+        double_arr_grid[num_inserted/2] = 1.0;
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        cout << "double set time " << duration.count()/1000.0 << " ms" << endl << endl;
+    }
+}
+
+long int time_calcGrad(int block_size, int L, thrust::device_vector<Cell> &gpu_1d_grid, int repeat=1) {
 
     auto grid_size = (NCELL_MAX + block_size - 1) / block_size;
     printf("num threads: %ld\n", grid_size*block_size);
@@ -466,66 +555,115 @@ long int time_calcGrad(int block_size, int L, thrust::device_vector<Cell> &gpu_1
     return duration.count()/1000.0;
 }
 
-void test_speed() {
-    for (int32_t L = LMAX; L <= LMAX; L++) {
-        long int num_inserted = pow(2, NDIM * L);
+long int time_calcGrad(int block_size, int L, thrust::device_vector<Cell> &gpu_1d_grid, 
+    unordered_map<int, long int> &times, int repeat=1) {
+    if (repeat <= 1 && times.find(block_size) != times.end()) 
+        return times.find(block_size)->second;
 
-        // print other block size times
-        // and then dont do binary search
-        // cudaMalloc array unified memory
-        thrust::device_vector<Cell> gpu_1d_grid(num_inserted);        
-        makeBaseGrid(gpu_1d_grid, L);
+    long int duration = time_calcGrad(block_size, L, gpu_1d_grid, repeat);
+    times.insert({block_size, duration});
+    return duration;
+}
 
-        int m = 32, M = 512; // 512 + 256
-        unordered_map<int, long int> times;
-        long int min_kernel_time = time_calcGrad(m, L, gpu_1d_grid, times);
-        //cout << "STEP2" << endl;
-        long int max_kernel_time = time_calcGrad(M, L, gpu_1d_grid, times);
-        //cout << "STEP3" << endl;
-        long int min_time = min_kernel_time;
-        long int max_time = max_kernel_time;
+void test_speed_binary() {
+    auto start = high_resolution_clock::now();
 
-        long int mid_time = min_time;
-        long int mid_up_time, mid_down_time;
-        int mid = m;
-        
+    int L = LMAX;
+    long int num_inserted = pow(2, NDIM * L);
+
+    // print other block size times
+    // and then dont do binary search
+    // cudaMalloc array unified memory
+    thrust::device_vector<Cell> gpu_1d_grid(num_inserted);        
+    makeBaseGrid(gpu_1d_grid, L);
+
+    int m = 32, M = 512; // 512 + 256
+    unordered_map<int, long int> times;
+    long int min_kernel_time = time_calcGrad(m, L, gpu_1d_grid, times);
+    //cout << "STEP2" << endl;
+    long int max_kernel_time = time_calcGrad(M, L, gpu_1d_grid, times);
+    //cout << "STEP3" << endl;
+    long int min_time = min_kernel_time;
+    long int max_time = max_kernel_time;
+
+    long int mid_time = min_time;
+    long int mid_up_time, mid_down_time;
+    int mid = m;
+    
+    mid = (M+m)/2/32*32;
+    mid_up_time = time_calcGrad(mid+32, L, gpu_1d_grid, times);
+    mid_down_time = time_calcGrad(mid-32, L, gpu_1d_grid, times);
+
+    while (M - m > 64 && mid_up_time != mid_down_time) {
         mid = (M+m)/2/32*32;
+        mid_time = time_calcGrad(mid, L, gpu_1d_grid, times);
         mid_up_time = time_calcGrad(mid+32, L, gpu_1d_grid, times);
         mid_down_time = time_calcGrad(mid-32, L, gpu_1d_grid, times);
-
-        while (M - m > 64 && mid_up_time != mid_down_time) {
-            mid = (M+m)/2/32*32;
-            mid_time = time_calcGrad(mid, L, gpu_1d_grid, times);
-            mid_up_time = time_calcGrad(mid+32, L, gpu_1d_grid, times);
-            mid_down_time = time_calcGrad(mid-32, L, gpu_1d_grid, times);
-            if (mid_up_time == mid_down_time) {
-                if (mid_time > mid_up_time) {
-                    printf("ERROR: local max found instead\n");
-                }
-                break;
-            } 
-            if (mid_up_time > mid_down_time) {
-                M = mid;
-                max_time = mid_time;
-            } else {
-                m = mid;
-                min_time = mid_time;
+        if (mid_up_time == mid_down_time) {
+            if (mid_time > mid_up_time) {
+                printf("ERROR: local max found instead\n");
             }
+            break;
+        } 
+        if (mid_up_time > mid_down_time) {
+            M = mid;
+            max_time = mid_time;
+        } else {
+            m = mid;
+            min_time = mid_time;
         }
-        if (mid_time > min_time) {
-            mid = m;
-            mid_time = min_time;
-        }
-        if (mid_time > max_time) {
-            mid = M;
-            mid_time = max_time;
-        }
-        cout << "L = " << L << ", best kernel block size: " << mid << " time: " << mid_time << " ms" << endl;
-        if (max_kernel_time == min_kernel_time)
-            cout << "L = " << L << ", Same time. Min block: " << m << ", max block: " << M << endl;
-        time_calcGrad(mid, L, gpu_1d_grid, times, 50);
-        cout << endl << endl;
     }
+    if (mid_time > min_time) {
+        mid = m;
+        mid_time = min_time;
+    }
+    if (mid_time > max_time) {
+        mid = M;
+        mid_time = max_time;
+    }
+    cout << "L = " << L << ", best kernel block size: " << mid << " time: " << mid_time << " ms" << endl;
+    if (max_kernel_time == min_kernel_time)
+        cout << "L = " << L << ", Same time. Min block: " << m << ", max block: " << M << endl;
+    time_calcGrad(mid, L, gpu_1d_grid, times, 50);
+    cout << endl;
+
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Total time: " << duration.count()/1000.0 << " ms" << endl;
+}
+
+void test_speed() {
+    auto start0 = high_resolution_clock::now();
+    auto start = start0;
+
+    int L = LMAX;
+    long int num_inserted = pow(2, NDIM * L);
+
+    // print other block size times
+    // and then dont do binary search
+    // cudaMalloc array unified memory
+    thrust::device_vector<Cell> gpu_1d_grid(num_inserted);   
+
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    start = high_resolution_clock::now();
+    cout << "Time after device_vector creation: " << duration.count()/1000.0 << " ms" << endl;
+
+    makeBaseGrid(gpu_1d_grid, L);
+    
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    start = high_resolution_clock::now();
+    cout << "Time after makeBaseGrid: " << duration.count()/1000.0 << " ms" << endl;
+
+    int block_size = 512;
+    cout << "L = " << L << ", block size " << block_size << endl;
+    time_calcGrad(block_size, L, gpu_1d_grid, 50);
+    cout << endl;
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start0);
+    cout << "Total time: " << duration.count()/1000.0 << " ms" << endl;
 }
 
 void test_gradients_baseGrid() {
@@ -578,7 +716,7 @@ int main() {
                 +to_string(lround(2*pow(2, LMAX*NDIM))));
         }
 
-        test_speed();
+        test_device_vector_speed();
 
     } catch  (const runtime_error& error) {
         printf(error.what());

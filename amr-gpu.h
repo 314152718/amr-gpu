@@ -253,8 +253,7 @@ bool keyExists(const idx4& idx_cell, host_map &host_table);
 template <typename Map>
 __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res);
 void makeBaseGrid(host_map &host_table, int32_t lbase = LBASE);
-void setGridCell(const idx4 idx_cell, const long int hindex, int32_t flag_leaf,
-                 host_map &host_table);
+void setGridCell(const idx4 idx_cell, const long int hindex, int32_t flag_leaf, host_map &host_table, bool to_offset=true);
 void insert(map_type &hashtable, const idx4& key, Cell* const value);
 void setGridChildren(idx4 idx_cell, short i, host_map &host_table);
 void refineGridCell(const idx4 idx_cell, host_map &host_table);
