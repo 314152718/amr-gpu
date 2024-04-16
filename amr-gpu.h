@@ -48,6 +48,7 @@ const int32_t LMAX = 7; // max AMR level
 const int32_t NDIM = 3; // number of dimensions
 // expression must have a constant value
 
+// uint32_t max val 4 294 967 295
 // lround(2*pow(2, LMAX*NDIM)); <- dont work
 // {2, 16, 128, 1024, 8192, 65536, 524288, 4194304, 33554432, 268435456};
 constexpr uint32_t NCELL_MAX = 4194304; //4194304; //2147483648; (10) // 2097152 + 10;
@@ -115,8 +116,10 @@ namespace std
 {
     template<>
     struct hash<idx4> {
+        // size_t ?? == uint16 -> max 65000
         __host__ __device__ size_t operator()(const idx4& idx_cell) const noexcept {
-            size_t hashval = HASH[0] * idx_cell.idx3[0] + HASH[1] * idx_cell.idx3[1] + HASH[2] * idx_cell.idx3[2] + HASH[3] * idx_cell.L;
+            size_t hashval = HASH[0] * idx_cell.idx3[0] + HASH[1] * idx_cell.idx3[1] + HASH[2] * idx_cell.idx3[2] + 
+                HASH[3] * idx_cell.L;
             return hashval;
         };
     };
@@ -193,15 +196,6 @@ __host__ __device__ void println(Cell const &cell) {
 // purpose is to store size as well
 //typedef cuco::static_map<idx4, Cell*, cuco::extent<std::size_t, 2097162UL>, cuda::std::__4::__detail::thread_scope_device, idx4_equals, cuco::linear_probing<1, ramses_hash>, cuco::cuda_allocator<cuco::pair<idx4, Cell *>>
 
-template <typename Map>
-struct SizeMap {
-    Map &hashtable; //, KeyEqual = idx4_equals{}, ProbingScheme = ramses_hash{}
-    size_t numCells;
-
-    //__host__ __device__ SizeMap(cuco::static_map<idx4, Cell*> hashtable_init, size_t numCells_init) : 
-    //    hashtable{hashtable_init}, numCells{numCells_init} {};
-};
-
 // custom value output stream representation
 ostream& operator<<(ostream &os, Cell const &cell) {
     os << "[rho " << cell.rho << ", rho_grad_x " << cell.rho_grad[0] << ", rho_grad_y"
@@ -244,43 +238,3 @@ __host__ __device__ void hilbertToTranspose(const long int hindex, const int L, 
         h >>= 1;
     }
 }
-void getHindex(idx4 idx_cell, long int &hindex);
-void getHindexInv(long int hindex, int L, idx4& idx_cell);
-double rhoFunc(const double coord[NDIM], const double sigma);
-bool refCrit(double rho); 
-__host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border);
-bool keyExists(const idx4& idx_cell, host_map &host_table);
-template <typename Map>
-__device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res);
-void makeBaseGrid(host_map &host_table, int32_t lbase = LBASE);
-void setGridCell(const idx4 idx_cell, const long int hindex, int32_t flag_leaf, host_map &host_table, bool to_offset=true);
-void insert(map_type &hashtable, const idx4& key, Cell* const value);
-void setGridChildren(idx4 idx_cell, short i, host_map &host_table);
-void refineGridCell(const idx4 idx_cell, host_map &host_table);
-template <typename Map>
-void printHashtableIdx(SizeMap<Map> &sizeTable);
-void printHashtableIdx(host_map &host_table);
-void refineGrid1lvl(host_map &host_table);
-void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, map_type &hashtable);
-template <typename Map>
-__device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, bool &is_ref, double &rho_neighbor, Map hashtable);
-// __device__ are not kernels, not callable from host
-template <typename Map>
-__device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable);
-template <typename Map, typename KeyIter>
-__global__ void calcGrad(Map hashtable_ref, KeyIter contained_keys, size_t num_keys);
-template <typename KeyIter, typename ValueIter>
-void writeGrid(KeyIter keys_iter, ValueIter underl_values_iter, size_t num_keys, string filename);
-void writeGrid(host_map &host_table, string filename);
-
-template <typename Map, typename KeyIter, typename ValueIter>
-__global__ void insert(Map map_ref,
-                       KeyIter key_begin,
-                       ValueIter value_begin,
-                       size_t num_keys,
-                       int* num_inserted);
-template <typename ValueIter, typename UnderlValueIter>
-__global__ void insert_vector_pointers(ValueIter insert_values_begin, 
-                                       UnderlValueIter pointer_underl_values_begin, 
-                                       size_t num_keys, int* num_inserted);
-// ------------------------------------------------ //

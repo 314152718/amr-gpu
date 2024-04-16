@@ -161,7 +161,7 @@ __host__ __device__ void getIndex(const idx4 idx_cell, long int &index) {
     
     return res / pow_n_NDIM;
 }*/
-double rhoFunc(const double coord[NDIM], const double sigma) {
+__device__ double rhoFunc(const double coord[NDIM], const double sigma) {
     double rsq = 0;
     for (short i = 0; i < NDIM; i++) {
         rsq += pow(coord[i] - 0.5, 2);
@@ -197,10 +197,6 @@ __host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, cons
     is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
 }
 
-bool keyExists(const idx4& idx_cell, host_map &host_table) {
-    return host_table.find(idx_cell) != host_table.end();
-}
-// cannot return a value on the __global__ kernel, but can on __device__
 template <typename Map>
 __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res) {
     res = hashtable_ref.find(idx_cell) != hashtable_ref.end();
@@ -310,14 +306,15 @@ void writeGrid(KeyIter keys_iter, ValueIter underl_values_iter, size_t num_keys,
     outfile.close();
 }
 
-void writeGrid(host_map &host_table, string filename) {
+void writeGrid(thrust::device_vector<idx4> &insert_keys, thrust::device_vector<Cell> &insert_vals, string filename) {
     // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
     ofstream outfile;
     outfile.open(filename);
     outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
-    for (auto kv : host_table) {
-        idx4 idx_cell = kv.first;
-        Cell cell = kv.second;
+    for (int i = 0; i < insert_keys.size(); i++) {
+        idx4 idx_cell = insert_keys[i];
+        Cell cell = insert_vals[i];
+
         outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
                 << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
                 << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
@@ -325,32 +322,30 @@ void writeGrid(host_map &host_table, string filename) {
     outfile.close();
 }
 
-// initialize the base level grid
-// dont do lbase=LBASE -- redefinition of default arg
-void makeBaseGrid(host_map &host_table, int32_t lbase) {
-    idx4 idx_cell;
-    for (int L = 0; L <= lbase; L++) {
-        for (long int index = 0; index < pow(2, NDIM * L); index++) {
-            getIndexInv(index, L, idx_cell);
-            setGridCell(idx_cell, index, L == lbase, host_table); // cells have flag_leaf == 1 at L == lbase == 3
-        }
-    }
-}
+template <typename KeyIter, typename ValueIter>
+__global__ void make1lvlGrid(KeyIter insert_keys_it, ValueIter insert_vals_it, int L, size_t num_inserted, 
+                             bool to_offset) {
+    long int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    
+    while (tid < num_inserted) {
+        int index = tid;
+        int offset = 0;
+        if (to_offset)
+            offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
+        idx4 idx_cell;
 
-void make1lvlGrid(host_map &host_table, int32_t L) {
-    idx4 idx_cell;
-    for (long int index = 0; index < pow(2, NDIM * L); index++) {
         getIndexInv(index, L, idx_cell);
-        setGridCell(idx_cell, index, true, host_table, false); // cells have flag_leaf == 1 at L == lbase == 3
+        insert_keys_it[index + offset] = idx_cell;
+        setGridCell(idx_cell, index, true, insert_vals_it, to_offset); // cells have flag_leaf == 1 at L == lbase == 3
+        
+        tid += gridDim.x * blockDim.x;
     }
 }
 
 // set a grid cell in the grid array and the hash table
-void setGridCell(const idx4 idx_cell, const long int index, int32_t flag_leaf,
-                 host_map &host_table, bool to_offset) {
-    //idx_cell.println();
-    if (keyExists(idx_cell, host_table)) throw runtime_error("setting existing cell");
-
+template <typename DevicePtr>
+__device__ void setGridCell(const idx4 idx_cell, const long int index, int32_t flag_leaf,
+                DevicePtr insert_vals_it, bool to_offset=true) {
     int offset = 0;
     if (to_offset)
         offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
@@ -361,17 +356,18 @@ void setGridCell(const idx4 idx_cell, const long int index, int32_t flag_leaf,
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
 
-    // linear 1d index of all cells
-    if (offset + index >= NCELL_MAX) throw runtime_error("offset + index >= NCELL_MAX");
+    if (offset + index >= NCELL_MAX) printf("ERROR: offset + index >= NCELL_MAX\n");
+    Cell cell = *(insert_vals_it + offset + index);
+    if (!(cell == Cell())) printf("ERROR setting existing cell\n");
     
-    host_table[idx_cell] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, flag_leaf);
+    insert_vals_it[offset + index] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, flag_leaf);
     //printf("HOST ");
     //idx_cell.print();
-    //host_table[idx_cell].print();
+    //insert_vals_it[offset + index].print();
     //printf("\n");
 }
 
-// refine the grid by one level
+/*// refine the grid by one level
 // unsynced with getHindex
 void refineGrid1lvl(host_map &host_table) {
     for (auto kv : host_table) {
@@ -429,7 +425,7 @@ void refineGridCell(const idx4 idx_cell, host_map &host_table) {
             refineGridCell(idx_neighbor, host_table);
         }
     }
-}
+}*/
 
 template <typename ValueIter, typename UnderlValueIter>
 __global__ void insert_vector_pointers(ValueIter insert_values_begin, 
@@ -479,7 +475,7 @@ __global__ void insert(Map map_ref,
 }
 
 template <typename KeyIter, typename Map>
-__global__ void printHashtable(KeyIter key_iter, Map hashtable_ref, int num_keys) {
+__global__ void printHashtable(KeyIter key_iter, Map hashtable_ref, int32_t num_keys) {
     auto zipped =
         thrust::make_zip_iterator(thrust::make_tuple(key_iter));
     printf("GPU hashmap num_keys %d\n", num_keys);
@@ -505,31 +501,34 @@ void test_unordered_map() {
 }
 
 void test_makeBaseGrid() {
-    host_map host_table;
+    int32_t num_cells = 0;
+    for (int L = 0; L < LBASE; L++) {
+        num_cells += pow(2, NDIM * L);
+    }
+    thrust::device_vector<idx4> insert_keys(num_cells);
+    thrust::device_vector<Cell> underl_values(num_cells);
     
     cout << "Making base grid" << endl;
-    
-    makeBaseGrid(host_table);
-    writeGrid(host_table, "grid-host.csv");
+    for (int L = 0; L < LBASE; L++) {
+        int32_t num_inserted = pow(2, NDIM * L);
+        
+        make1lvlGrid<<<GRID_SIZE, BLOCK_SIZE>>>(insert_keys.begin(),
+                                                underl_values.begin(), 
+                                                LBASE,
+                                                num_inserted,
+                                                true);
+    }
+    writeGrid(insert_keys, underl_values, "grid-host.csv");
     
 
     // hashtable insert values from host_table
 
-    thrust::device_vector<idx4> insert_keys(host_table.size());
-    thrust::device_vector<Cell> underl_values(host_table.size());
-    thrust::device_vector<Cell*> insert_values(host_table.size());
-
-    int i = 0;
-    for (auto kv : host_table) {
-        insert_keys[i] = kv.first;
-        underl_values[i] = kv.second;
-        i++;
-    }
+    thrust::device_vector<Cell*> insert_values(num_cells);
 
     thrust::device_vector<int> num_inserted(1);
     insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
                                                       thrust::raw_pointer_cast(underl_values.data()),
-                                                      host_table.size(),
+                                                      num_cells,
                                                       num_inserted.data().get());
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
@@ -550,7 +549,7 @@ void test_makeBaseGrid() {
     insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
                                       insert_keys.begin(),
                                       insert_values.begin(),
-                                      host_table.size(),
+                                      num_cells,
                                       num_inserted.data().get());
 
     cudaDeviceSynchronize();
@@ -590,11 +589,19 @@ void test_makeBaseGrid() {
 }
 
 void test_gradients_baseGrid() {
-    host_map host_table;
+    int32_t num_cells = pow(2, NDIM * LBASE);
     
     cout << "Making base grid" << endl;
+    thrust::device_vector<idx4> insert_keys(num_cells);
+    thrust::device_vector<Cell> underl_values(num_cells);
     
-    make1lvlGrid(host_table, LBASE);
+    make1lvlGrid<<<GRID_SIZE, BLOCK_SIZE>>>(insert_keys.begin(),
+                                            underl_values.begin(), 
+                                            LBASE,
+                                            num_cells,
+                                            false);
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
 
     /*const int num_ref = LMAX - LBASE;
     cout << "Refining grid levels" << endl;
@@ -603,26 +610,17 @@ void test_gradients_baseGrid() {
     }
     cout << "Finished refining grid levels" << endl;*/
     //string filename = "grid-host.csv";
-    writeGrid(host_table, "grid-host.csv");
+    writeGrid(insert_keys, underl_values, "grid-host.csv");
     
 
     // hashtable insert values from host_table
 
-    thrust::device_vector<idx4> insert_keys(host_table.size());
-    thrust::device_vector<Cell> underl_values(host_table.size());
-    thrust::device_vector<Cell*> insert_values(host_table.size());
-
-    int i = 0;
-    for (auto kv : host_table) {
-        insert_keys[i] = kv.first;
-        underl_values[i] = kv.second;
-        i++;
-    }
+    thrust::device_vector<Cell*> insert_values(num_cells);
 
     thrust::device_vector<int> num_inserted(1);
     insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
                                                       thrust::raw_pointer_cast(underl_values.data()),
-                                                      host_table.size(),
+                                                      num_cells,
                                                       num_inserted.data().get());
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
@@ -643,7 +641,7 @@ void test_gradients_baseGrid() {
     insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
                                       insert_keys.begin(),
                                       insert_values.begin(),
-                                      host_table.size(),
+                                      num_cells,
                                       num_inserted.data().get());
 
     cudaDeviceSynchronize();
@@ -682,39 +680,13 @@ void test_gradients_baseGrid() {
 }
 
 
-long int time_calcGrad(int block_size, int L, host_map &host_table, int repeat=1) {
+template <typename KeyIter, typename ValueIter>
+long int time_calcGrad(int block_size, int L,
+                        KeyIter insert_keys_it, ValueIter insert_vals_it, 
+                        int32_t num_cells, int repeat=1) {
     auto start = high_resolution_clock::now();
 
-    thrust::device_vector<idx4> insert_keys(host_table.size());
-    thrust::device_vector<Cell> underl_values(host_table.size());
-    thrust::device_vector<Cell*> insert_values(host_table.size());
-    //printf("time_calcGrad insert_values\n");
-
-    int i = 0;
-    for (auto kv : host_table) {
-        insert_keys[i] = kv.first;
-        underl_values[i] = kv.second;
-        i++;
-    }
-
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    start = high_resolution_clock::now();
-    cout << "time for insert_keys and underl_values: " << duration.count()/1000.0 << " ms" << endl;
-
     thrust::device_vector<int> num_inserted(1);
-    insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
-                                                    thrust::raw_pointer_cast(underl_values.data()),
-                                                    host_table.size(),
-                                                    num_inserted.data().get());
-    //printf("time_calcGrad insert_vector_pointers\n");
-    cudaDeviceSynchronize();
-    CHECK_LAST_CUDA_ERROR();
-
-    stop = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(stop - start);
-    cout << "time for GPU insert_vector_pointers: " << duration.count()/1000.0 << " ms" << endl;
-
     
     auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
                                     cuco::empty_key{empty_idx4_sentinel},
@@ -722,16 +694,17 @@ long int time_calcGrad(int block_size, int L, host_map &host_table, int repeat=1
                                     thrust::equal_to<idx4>{},
                                     cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
     auto insert_ref = hashtable.ref(cuco::insert);
+    auto find_ref = hashtable.ref(cuco::find);
 
-    
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
     start = high_resolution_clock::now();
+    cout << "time after creating hashtable and ref: " << duration.count()/1000.0 << " ms" << endl;
 
-    // reset num_inserted
-    num_inserted[0] = 0;
     insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
-                                    insert_keys.begin(),
-                                    insert_values.begin(),
-                                    host_table.size(),
+                                    insert_keys_it,
+                                    insert_vals_it,
+                                    num_cells,
                                     num_inserted.data().get());
 
     cudaDeviceSynchronize();
@@ -744,12 +717,10 @@ long int time_calcGrad(int block_size, int L, host_map &host_table, int repeat=1
     cout << "time for GPU insert: " << duration.count()/1000.0 << " ms" << endl;
 
     
-    //printf("time_calcGrad contained_keys start\n");
     thrust::device_vector<idx4> contained_keys(num_inserted[0]);
     thrust::device_vector<Cell*> contained_values(num_inserted[0]);
     // this is random ordered and is DIFFERENT from insert_keys order
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
-    //printf("time_calcGrad contained_keys end\n");
 
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
@@ -759,7 +730,6 @@ long int time_calcGrad(int block_size, int L, host_map &host_table, int repeat=1
     start = high_resolution_clock::now();
     cout << "time for retrieve_all: " << duration.count()/1000.0 << " ms" << endl;
 
-    auto find_ref = hashtable.ref(cuco::find);
     auto grid_size = (NCELL_MAX + block_size - 1) / block_size;
     printf("num threads: %ld\n", grid_size*block_size);
 
@@ -771,8 +741,6 @@ long int time_calcGrad(int block_size, int L, host_map &host_table, int repeat=1
         calcGrad<<<grid_size, block_size>>>(find_ref, 
                                             contained_keys.begin(), 
                                             num_inserted[0]); // add for (50)
-        //printf("time_calcGrad calcGrad end\n");
-
         cudaDeviceSynchronize();
         CHECK_LAST_CUDA_ERROR();
 
@@ -790,18 +758,55 @@ void test_speed() {
     auto start = start0;
 
     int L = LMAX;
-    host_map host_table;
+    int block_size = 512;
+    auto grid_size = (NCELL_MAX + block_size - 1) / block_size;
+    int32_t num_cells = pow(2, NDIM * L);
     
-    make1lvlGrid(host_table, L);
-
+    thrust::device_vector<idx4> insert_keys(num_cells);
+    thrust::device_vector<Cell> underl_values(num_cells);
+    
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     start = high_resolution_clock::now();
-    cout << "Time after make1lvlGrid: " << duration.count()/1000.0 << " ms" << endl;
+    cout << "Time after creating insert_keys and underl_values: " << duration.count()/1000.0 << " ms" << endl;
 
-    int block_size = 512;
+    make1lvlGrid<<<grid_size, block_size>>>(insert_keys.begin(),
+                                            underl_values.begin(), 
+                                            L,
+                                            num_cells,
+                                            false);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    start = high_resolution_clock::now();
+    cout << "Time after GPU make1lvlGrid: " << duration.count()/1000.0 << " ms" << endl;
+
+
+    thrust::device_vector<Cell*> insert_values(num_cells);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    start = high_resolution_clock::now();
+    cout << "time after creating insert_values: " << duration.count()/1000.0 << " ms" << endl;
+
+    thrust::device_vector<int> num_inserted(1);
+    insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
+                                                    thrust::raw_pointer_cast(underl_values.data()),
+                                                    num_cells,
+                                                    num_inserted.data().get());
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    cout << "time for GPU insert_vector_pointers: " << duration.count()/1000.0 << " ms" << endl;
+
     cout << "L = " << L << ", block size " << block_size << endl;
-    time_calcGrad(block_size, L, host_table, 5);
+    time_calcGrad(block_size, L,
+                insert_keys.begin(),
+                insert_values.begin(),
+                num_cells, 
+                5);
     cout << endl;
     
     stop = high_resolution_clock::now();
