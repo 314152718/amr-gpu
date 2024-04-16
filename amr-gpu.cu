@@ -356,7 +356,7 @@ __device__ void setGridCell(const idx4 idx_cell, const long int index, int32_t f
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
 
-    if (offset + index >= NCELL_MAX) printf("ERROR: offset + index >= NCELL_MAX\n");
+    if (offset + index >= NCELL_MAX_ARR[idx_cell.L]) printf("ERROR: offset + index >= NCELL_MAX\n");
     Cell cell = *(insert_vals_it + offset + index);
     if (!(cell == Cell())) printf("ERROR setting existing cell\n");
     
@@ -681,7 +681,7 @@ void test_gradients_baseGrid() {
 
 
 template <typename KeyIter, typename ValueIter>
-long int time_calcGrad(int block_size, int L,
+double time_calcGrad(int block_size, int L,
                         KeyIter insert_keys_it, ValueIter insert_vals_it, 
                         int32_t num_cells, int repeat=1) {
     auto start = high_resolution_clock::now();
@@ -730,9 +730,10 @@ long int time_calcGrad(int block_size, int L,
     start = high_resolution_clock::now();
     cout << "time for retrieve_all: " << duration.count()/1000.0 << " ms" << endl;
 
-    auto grid_size = (NCELL_MAX + block_size - 1) / block_size;
+    auto grid_size = (NCELL_MAX_ARR[L] + block_size - 1) / block_size;
     printf("num threads: %ld\n", grid_size*block_size);
 
+    double avg_time = 0;
     for (int i = 0; i < repeat; i++) {
         auto start = high_resolution_clock::now();
 
@@ -746,71 +747,86 @@ long int time_calcGrad(int block_size, int L,
 
         auto stop = high_resolution_clock::now();
         duration = duration_cast<microseconds>(stop - start);
+        avg_time += duration.count()/1000.0;
         if (repeat > 1) {
             cout << "block_size = " << block_size << ", time: " << duration.count()/1000.0 << " ms" << endl;
         }
     }
-    return duration.count()/1000.0;
+    return avg_time / repeat;
 }
 
 void test_speed() {
-    auto start0 = high_resolution_clock::now();
-    auto start = start0;
+    auto start_all = high_resolution_clock::now();
 
-    int L = LMAX;
+    ofstream outfile;
+    outfile.open("time_hashtable.csv");
+    outfile << "L,dur_ms\n";
     int block_size = 512;
-    auto grid_size = (NCELL_MAX + block_size - 1) / block_size;
-    int32_t num_cells = pow(2, NDIM * L);
-    
-    thrust::device_vector<idx4> insert_keys(num_cells);
-    thrust::device_vector<Cell> underl_values(num_cells);
-    
+
+    for (int L = LBASE; L <= LMAX; L++) {
+        auto start0 = high_resolution_clock::now();
+        auto start = start0;
+
+        auto grid_size = (NCELL_MAX_ARR[L] + block_size - 1) / block_size;
+        int32_t num_cells = pow(2, NDIM * L);
+        
+        thrust::device_vector<idx4> insert_keys(num_cells);
+        thrust::device_vector<Cell> underl_values(num_cells);
+        
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "Time after creating insert_keys and underl_values: " << duration.count()/1000.0 << " ms" << endl;
+
+        make1lvlGrid<<<grid_size, block_size>>>(insert_keys.begin(),
+                                                underl_values.begin(), 
+                                                L,
+                                                num_cells,
+                                                false);
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "Time after GPU make1lvlGrid: " << duration.count()/1000.0 << " ms" << endl;
+
+
+        thrust::device_vector<Cell*> insert_values(num_cells);
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        start = high_resolution_clock::now();
+        cout << "time after creating insert_values: " << duration.count()/1000.0 << " ms" << endl;
+
+        thrust::device_vector<int> num_inserted(1);
+        insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
+                                                        thrust::raw_pointer_cast(underl_values.data()),
+                                                        num_cells,
+                                                        num_inserted.data().get());
+        cudaDeviceSynchronize();
+        CHECK_LAST_CUDA_ERROR();
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        cout << "time for GPU insert_vector_pointers: " << duration.count()/1000.0 << " ms" << endl;
+
+        cout << "L = " << L << ", block size " << block_size << endl;
+        double avg_time = time_calcGrad(block_size, L,
+                                        insert_keys.begin(),
+                                        insert_values.begin(),
+                                        num_cells, 
+                                        10);
+
+        outfile << L << "," << avg_time << endl;
+        
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start0);
+        cout << endl;
+        cout << "Total level time for L=" << L << ": " << duration.count()/1000.0 << " ms" << endl << endl;
+    }
+    outfile.close();
+
     auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    start = high_resolution_clock::now();
-    cout << "Time after creating insert_keys and underl_values: " << duration.count()/1000.0 << " ms" << endl;
-
-    make1lvlGrid<<<grid_size, block_size>>>(insert_keys.begin(),
-                                            underl_values.begin(), 
-                                            L,
-                                            num_cells,
-                                            false);
-
-    stop = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(stop - start);
-    start = high_resolution_clock::now();
-    cout << "Time after GPU make1lvlGrid: " << duration.count()/1000.0 << " ms" << endl;
-
-
-    thrust::device_vector<Cell*> insert_values(num_cells);
-
-    stop = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(stop - start);
-    start = high_resolution_clock::now();
-    cout << "time after creating insert_values: " << duration.count()/1000.0 << " ms" << endl;
-
-    thrust::device_vector<int> num_inserted(1);
-    insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
-                                                    thrust::raw_pointer_cast(underl_values.data()),
-                                                    num_cells,
-                                                    num_inserted.data().get());
-    cudaDeviceSynchronize();
-    CHECK_LAST_CUDA_ERROR();
-
-    stop = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(stop - start);
-    cout << "time for GPU insert_vector_pointers: " << duration.count()/1000.0 << " ms" << endl;
-
-    cout << "L = " << L << ", block size " << block_size << endl;
-    time_calcGrad(block_size, L,
-                insert_keys.begin(),
-                insert_values.begin(),
-                num_cells, 
-                5);
-    cout << endl;
-    
-    stop = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(stop - start0);
+    auto duration = duration_cast<microseconds>(stop - start_all);
     cout << "Total time: " << duration.count()/1000.0 << " ms" << endl;
 }
 
@@ -889,10 +905,10 @@ void test_GPU_map() {
 int main() {
     printf("amr gpu hashtable\n");
     try {
-        if (NCELL_MAX != lround(2*pow(2, LMAX*NDIM))) {
+        /*if (NCELL_MAX != lround(2*pow(2, LMAX*NDIM))) {
             throw runtime_error("NCELL_MAX != 2*2^(LMAX*NDIM); NCELL_MAX "+to_string(NCELL_MAX)+" 2*2^(LMAX*NDIM) "
                 +to_string(lround(2*pow(2, LMAX*NDIM))));
-        }
+        }*/
 
         test_speed();
         
