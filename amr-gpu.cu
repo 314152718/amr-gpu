@@ -161,17 +161,17 @@ __host__ __device__ void getIndex(const idx4 idx_cell, long int &index) {
     
     return res / pow_n_NDIM;
 }*/
-__device__ double rhoFunc(const double coord[NDIM], const double sigma) {
+__device__ float rhoFunc(const double coord[NDIM], const double sigma) {
     double rsq = 0;
     for (short i = 0; i < NDIM; i++) {
         rsq += pow(coord[i] - 0.5, 2);
     }
-    double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
+    float rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
     return rho;
 }
 
 // criterion for refinement
-bool refCrit(double rho) {
+bool refCrit(float rho) {
     return rho > rho_crit;
 }
 
@@ -204,7 +204,7 @@ __device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res) {
 
 template <typename Map>
 __device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, 
-                                bool &is_ref, double &rho_neighbor, Map hashtable_ref) {
+                                bool &is_ref, float &rho_neighbor, Map hashtable_ref) {
     idx4 idx_neighbor;
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
@@ -247,7 +247,8 @@ template <typename Map>
 __device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable_ref) {
     bool is_ref[2];
     // explicitly use NDIM == 3
-    double dx, rho[3];
+    double dx;
+    float rho[3];
     int fd_case;
 
     dx = pow(0.5, idx_cell.L);
@@ -326,17 +327,19 @@ template <typename KeyIter, typename ValueIter>
 __global__ void make1lvlGrid(KeyIter insert_keys_it, ValueIter insert_vals_it, int L, size_t num_inserted, 
                              bool to_offset) {
     long int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    
+    //constexpr uint32_t NCELL_MAX_DEVICE[10] = {2, 16, 128, 1024, 8192, 65536, 524288, 4194304, 
+    //    33554432, 268435456};
+
     while (tid < num_inserted) {
-        int index = tid;
-        int offset = 0;
+        long int index = tid;
+        long int offset = 0;
         if (to_offset)
             offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
         idx4 idx_cell;
 
         getIndexInv(index, L, idx_cell);
         insert_keys_it[index + offset] = idx_cell;
-        setGridCell(idx_cell, index, true, insert_vals_it, to_offset); // cells have flag_leaf == 1 at L == lbase == 3
+        setGridCell(idx_cell, index, true, insert_vals_it, num_inserted, to_offset); // cells have flag_leaf == 1 at L == lbase == 3
         
         tid += gridDim.x * blockDim.x;
     }
@@ -345,8 +348,8 @@ __global__ void make1lvlGrid(KeyIter insert_keys_it, ValueIter insert_vals_it, i
 // set a grid cell in the grid array and the hash table
 template <typename DevicePtr>
 __device__ void setGridCell(const idx4 idx_cell, const long int index, int32_t flag_leaf,
-                DevicePtr insert_vals_it, bool to_offset=true) {
-    int offset = 0;
+                DevicePtr insert_vals_it, uint32_t num_inserted, bool to_offset=true) {
+    long int offset = 0;
     if (to_offset)
         offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
     // explicitly use NDIM == 3
@@ -356,7 +359,8 @@ __device__ void setGridCell(const idx4 idx_cell, const long int index, int32_t f
         coord[i] = idx_cell.idx3[i] * dx + dx / 2;
     }
 
-    if (offset + index >= NCELL_MAX_ARR[idx_cell.L]) printf("ERROR: offset + index >= NCELL_MAX\n");
+    if (offset + index >= num_inserted) 
+        printf("ERROR: offset + index >= NCELL_MAX; offset %ld index %ld ncell_max %u\n", offset, index, num_inserted);
     Cell cell = *(insert_vals_it + offset + index);
     if (!(cell == Cell())) printf("ERROR setting existing cell\n");
     
@@ -536,7 +540,7 @@ void test_makeBaseGrid() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<uint32_t, NCELL_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
                                       cuco::empty_value{empty_pcell_sentinel},
                                       thrust::equal_to<idx4>{},
@@ -688,7 +692,7 @@ double time_calcGrad(int block_size, int L,
 
     thrust::device_vector<int> num_inserted(1);
     
-    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<uint32_t, NCELL_MAX>{},
                                     cuco::empty_key{empty_idx4_sentinel},
                                     cuco::empty_value{empty_pcell_sentinel},
                                     thrust::equal_to<idx4>{},
@@ -716,8 +720,7 @@ double time_calcGrad(int block_size, int L,
     start = high_resolution_clock::now();
     cout << "time for GPU insert: " << duration.count()/1000.0 << " ms" << endl;
 
-    
-    thrust::device_vector<idx4> contained_keys(num_inserted[0]);
+    /*thrust::device_vector<idx4> contained_keys(num_inserted[0]);
     thrust::device_vector<Cell*> contained_values(num_inserted[0]);
     // this is random ordered and is DIFFERENT from insert_keys order
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
@@ -728,7 +731,7 @@ double time_calcGrad(int block_size, int L,
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     start = high_resolution_clock::now();
-    cout << "time for retrieve_all: " << duration.count()/1000.0 << " ms" << endl;
+    cout << "time for retrieve_all: " << duration.count()/1000.0 << " ms" << endl;*/
 
     auto grid_size = (NCELL_MAX_ARR[L] + block_size - 1) / block_size;
     printf("num threads: %ld\n", grid_size*block_size);
@@ -739,8 +742,8 @@ double time_calcGrad(int block_size, int L,
 
         // run as kernel on GPU
 
-        calcGrad<<<grid_size, block_size>>>(find_ref, 
-                                            contained_keys.begin(), 
+        calcGrad<<<grid_size, block_size>>>(find_ref,
+                                            insert_keys_it,
                                             num_inserted[0]); // add for (50)
         cudaDeviceSynchronize();
         CHECK_LAST_CUDA_ERROR();
@@ -851,7 +854,7 @@ void test_GPU_map() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<uint32_t, NCELL_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
                                       cuco::empty_value{empty_pcell_sentinel},
                                       thrust::equal_to<idx4>{},

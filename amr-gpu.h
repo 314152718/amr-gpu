@@ -50,9 +50,8 @@ const int32_t NDIM = 3; // number of dimensions
 
 // uint32_t max val 4 294 967 295
 // lround(2*pow(2, LMAX*NDIM)); <- dont work
-__host__ __device__ constexpr uint32_t NCELL_MAX_ARR[10] = {2, 16, 128, 1024, 8192, 65536, 524288, 4194304, 
-    33554432, 268435456};
-constexpr uint32_t NCELL_MAX = 268435456; //4194304; //2147483648; (10) // 2097152 + 10;
+constexpr uint32_t NCELL_MAX_ARR[11] = {1, 9, 73, 585, 4681, 37449, 299593, 2396745, 19173961, 153391689, 1227133513};
+constexpr uint32_t NCELL_MAX = 153391689; //2396745 (7); //1227133513 (10); // 2097152 + 10;
 //2*2^15 = 70368744177664; 
 
 const int32_t IDX_MAX = pow(2, LMAX) - 1;
@@ -62,7 +61,6 @@ const __device__ double FD_KERNEL[4][4] = {
     {-4., -5., 9., 15.},
     {-1., 0., 1., 2.}
 };
-__host__ __device__ const int32_t HASH[4] = {-1640531527, 97, 1003313, 5}; // hash function constants
 const double rho_crit = 0.01; // critical density for refinement
 const double rho_boundary = 0.; // boundary condition
 const double sigma = 0.01; // std of Gaussian density field
@@ -119,6 +117,8 @@ namespace std
     struct hash<idx4> {
         // size_t ?? == uint16 -> max 65000
         __host__ __device__ size_t operator()(const idx4& idx_cell) const noexcept {
+            // does not want to define it on device if put outside this function
+            const int32_t HASH[4] = {-1640531527, 97, 1003313, 5};
             size_t hashval = HASH[0] * idx_cell.idx3[0] + HASH[1] * idx_cell.idx3[1] + HASH[2] * idx_cell.idx3[2] + 
                 HASH[3] * idx_cell.L;
             return hashval;
@@ -145,6 +145,7 @@ struct idx4_equals {
 struct ramses_hash {
     template <typename key_type>
     __host__ __device__ uint32_t operator()(key_type k) {
+        const int32_t HASH[4] = {-1640531527, 97, 1003313, 5};
         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
         return hashval;
     };
@@ -152,9 +153,9 @@ struct ramses_hash {
 
 // custom value type
 struct Cell {
-    double rho;
+    float rho;
     // explicitly use NDIM == 3
-    double rho_grad[3];
+    float rho_grad[3];
     int32_t flag_leaf;
 
     __host__ __device__ Cell() {
@@ -169,7 +170,7 @@ struct Cell {
             rho_grad[i] = other.rho_grad[i];
         flag_leaf = other.flag_leaf;
     }*/
-    __host__ __device__ Cell(double rho_init, double rho_grad_x_init, double rho_grad_y_init, double rho_grad_z_init, 
+    __host__ __device__ Cell(float rho_init, float rho_grad_x_init, float rho_grad_y_init, float rho_grad_z_init, 
         int32_t flag_leaf_init) : rho{rho_init}, rho_grad{rho_grad_x_init, rho_grad_y_init, rho_grad_z_init}, flag_leaf{flag_leaf_init} {}
 
     __host__ __device__ bool operator==(Cell const& other) const {
@@ -213,7 +214,7 @@ typedef unordered_map<idx4, Cell> host_map; //, ramses_hash<idx4>, idx4_equals<i
 // globals
 auto const empty_idx4_sentinel = idx4{0, 0, 0, -1}; // works same as with uint16_nan: cannot use 0, 0, 0, -1 idx4
 auto const empty_cell_sentinel = Cell{double_nan, double_nan, double_nan, double_nan, int32t_nan};
-__host__ __device__ Cell* empty_pcell_sentinel = nullptr;
+Cell* empty_pcell_sentinel = nullptr;
 
 // --------------- FUNCTION DECLARATIONS ------------ //
 void checkLast(const char* const file, const int line);

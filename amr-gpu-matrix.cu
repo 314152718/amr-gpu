@@ -151,17 +151,17 @@ __host__ __device__ void getIndex(const int *idx_level, long int &index) {
     }
 }
 
-__device__ double rhoFunc(const double coord[NDIM], const double sigma) {
+__device__ float rhoFunc(const double coord[NDIM], const double sigma) {
     double rsq = 0;
     for (short i = 0; i < NDIM; i++) {
         rsq += pow(coord[i] - 0.5, 2);
     }
-    double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
+    float rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
     return rho;
 }
 
 // criterion for refinement
-bool refCrit(double rho) {
+bool refCrit(float rho) {
     return rho > rho_crit;
 }
 
@@ -207,7 +207,7 @@ __device__ bool equals(const int *idx_level, const int *idx_other) {
 // GPU VERISON: get information about the neighbor cell necessary for computing the gradient
 template <typename DevicePtr>
 __device__ void getNeighborInfo(const int *idx_level, const int dir, const bool pos, 
-                                bool &is_ref, double &rho_neighbor, 
+                                bool &is_ref, float &rho_neighbor, 
                                 DevicePtr gpu_1d_grid_it, uint32_t num_inserted) {
     int idx_neighbor[NDIM+1];
     int idx1_parent_neighbor;
@@ -267,7 +267,8 @@ __device__ void getNeighborInfo(const int *idx_level, const int dir, const bool 
 template <typename DevicePtr>
 __device__ void calcGradCell(int *idx_level, long int index, DevicePtr gpu_1d_grid_it, uint32_t num_inserted) {
     bool is_ref[2];
-    double dx, rho[3];
+    double dx;
+    float rho[3];
     int fd_case;
 
     /*int val[4] = {1, 1, 1, 2};
@@ -344,7 +345,8 @@ __device__ void setGridCell(DevicePtr gpu_1d_grid_it, const long int index, cons
 
     for (int i = 0; i < NDIM; i++) {
         coord[i] = idx_level[i] * dx + dx / 2;
-        if (idx_level[i] > NCELL_MAX_ARR[idx_level[NDIM]]) printf("ERROR idx_level[i] >= NCELL_MAX for i=%d\n", i);
+        if (idx_level[i] >= pow(2, idx_level[NDIM])) 
+            printf("ERROR idx_level[i] >= pow(2, idx_level[NDIM]) for i=%d\n", i);
     }
 
     Cell cell = *(gpu_1d_grid_it + index);
@@ -359,7 +361,7 @@ __global__ void makeBaseGrid(DevicePtr gpu_1d_grid_it, int L, uint32_t num_inser
     long int tid = threadIdx.x + blockIdx.x * blockDim.x;
     
     while (tid < num_inserted) {
-        int index = tid;
+        long int index = tid;
         int idx_level[NDIM+1];
         getIndexInv(index, L, idx_level);
 
@@ -368,7 +370,6 @@ __global__ void makeBaseGrid(DevicePtr gpu_1d_grid_it, int L, uint32_t num_inser
             printf("\nERROR: makeBaseGrid L > LMAX; L %d\n", idx_level[NDIM]);
         }
 
-        if (index >= NCELL_MAX_ARR[L]) printf("ERROR index >= N_cell_max\n");
         if (index >= num_inserted) printf("ERROR index >= gpu_1d_grid.size()\n");
 
         setGridCell(gpu_1d_grid_it, index, idx_level, num_inserted); // cells have flag_leaf == 1 at L == LBASE == 3
@@ -448,6 +449,9 @@ void test_index_funcs() {
 void test_device_vector_speed() {
     int L = LMAX;
     uint32_t num_inserted = pow(2, NDIM * L);
+    if (num_inserted > NCELL_MAX_ARR[L]) 
+        throw runtime_error("num_inserted > NCELL_MAX_ARR[L] "+to_string(num_inserted)+to_string(NCELL_MAX_ARR[L]));
+
     thrust::device_vector<Cell> gpu_1d_grid(num_inserted);
     thrust::device_vector<double> double_arr_grid(num_inserted);
 
@@ -514,6 +518,8 @@ void test_speed_binary() {
     int block_size = 512;
     auto grid_size = (NCELL_MAX_ARR[L] + block_size - 1) / block_size;
     uint32_t num_inserted = pow(2, NDIM * L);
+    if (num_inserted > NCELL_MAX_ARR[L]) 
+        throw runtime_error("num_inserted > NCELL_MAX_ARR[L] "+to_string(num_inserted)+to_string(NCELL_MAX_ARR[L]));
 
     // print other block size times
     // and then dont do binary search
@@ -594,6 +600,8 @@ void test_speed() {
 
         auto grid_size = (NCELL_MAX_ARR[L] + block_size - 1) / block_size;
         uint32_t num_inserted = pow(2, NDIM * L);
+        if (num_inserted > NCELL_MAX_ARR[L]) 
+            throw runtime_error("num_inserted > NCELL_MAX_ARR[L] "+to_string(num_inserted)+to_string(NCELL_MAX_ARR[L]));
 
         // print other block size times
         // and then dont do binary search
@@ -638,6 +646,8 @@ void test_gradients_baseGrid() {
     // explicitly use NDIM == 3
     
     uint32_t num_inserted = pow(2, NDIM * LBASE);
+    if (num_inserted > NCELL_MAX_ARR[LBASE]) 
+        throw runtime_error("num_inserted > NCELL_MAX_ARR[LBASE] "+to_string(num_inserted)+to_string(NCELL_MAX_ARR[LBASE]));
     // time the rest of the code
     // do 64 and 1024 block_size for 1d_vector and hashtable
 
