@@ -51,7 +51,7 @@ const int32_t NDIM = 3; // number of dimensions
 // uint32_t max val 4 294 967 295
 // lround(2*pow(2, LMAX*NDIM)); <- dont work
 constexpr uint32_t NCELL_MAX_ARR[11] = {1, 9, 73, 585, 4681, 37449, 299593, 2396745, 19173961, 153391689, 1227133513};
-constexpr uint32_t NCELL_MAX = 153391689; //2396745 (7); //1227133513 (10); // 2097152 + 10;
+constexpr uint32_t NCELL_MAX = 1227133513; //2396745 (7); //1227133513 (10); // 2097152 + 10;
 //2*2^15 = 70368744177664; 
 
 const int32_t IDX_MAX = pow(2, LMAX) - 1;
