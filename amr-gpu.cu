@@ -31,12 +31,12 @@ using namespace std;
 using namespace std::chrono;
 
 // compute the Hilbert index for a given 4-idx (i, j, k, L)
-void getHindex(idx4 idx_cell, long int &hindex) {
+void getHindex(idx4 idx_oct, long int &hindex) {
     int X[NDIM];
     for (int i=0; i<NDIM; i++){
-        X[i] = idx_cell.idx3[i];
+        X[i] = idx_oct.idx3[i];
     }
-    short int L = idx_cell.L;
+    short int L = idx_oct.L;
     uint16 m = 1 << (L - 1), p, q, t;
     // Inverse undo
     for (q = m; q > 1; q >>= 1) {
@@ -68,7 +68,7 @@ void getHindex(idx4 idx_cell, long int &hindex) {
 }
 
 // compute the 3-index for a given Hilbert index and AMR level
-void getHindexInv(long int hindex, int L, idx4& idx_cell) {
+void getHindexInv(long int hindex, int L, idx4& idx_oct) {
     int X[NDIM];
     hilbertToTranspose(hindex, L, X);
     int n = 2 << (L - 1), p, q, t;
@@ -92,75 +92,30 @@ void getHindexInv(long int hindex, int L, idx4& idx_cell) {
         } 
     } // exchange
     for (int i=0; i<NDIM; i++) {
-        idx_cell.idx3[i] = X[i];
+        idx_oct.idx3[i] = X[i];
     }
-    idx_cell.L = L;
+    idx_oct.L = L;
 }
 
-__host__ __device__ void getIndexInv(long int index, int L, idx4 &idx_cell) {
+__host__ __device__ void getIndexInv(long int index, int L, idx4 &idx_oct) {
     for (int dim = 0; dim < NDIM; dim++) {
         long int scale = (long int)pow(2, (NDIM-1-dim)*L);
-        idx_cell.idx3[dim] = int(index / scale);
+        idx_oct.idx3[dim] = int(index / scale);
         index %= scale;
     }
-    idx_cell.L = L;
+    idx_oct.L = L;
 }
 
-__host__ __device__ void getIndex(const idx4 idx_cell, long int &index) {
+__host__ __device__ void getIndex(const idx4 idx_oct, long int &index) {
     long int scale = 1;
     index = 0;
     for (int dim = NDIM-1; dim >= 0; dim--) {
-        index += scale * idx_cell.idx3[dim];
+        index += scale * idx_oct.idx3[dim];
         //printf("index %ld scale %ld\n", index, scale);
-        scale *= int(pow(2, idx_cell.L));
+        scale *= int(pow(2, idx_oct.L));
     }
 }
 
-// multi-variate Gaussian distribution
-/*double rhoFunc(const double coordMid[NDIM], const double cellSide, const double sigma) { // change back
-    //int n = round(cellSide / STEP_EPS); // 100 000
-    //double eps = cellSide / n;
-    //printf("n = %d\n", n);
-    int n = 100;
-    double eps = cellSide / n;
-    double pow_n_NDIM = pow(n, NDIM);
-
-    double coord[NDIM], coordEnd[NDIM], coordStart[NDIM];
-    for (int i = 0; i < NDIM; i++) {
-        coordStart[i] = coordMid[i] - cellSide/2.0 + eps/2.0; // center of little cell
-        coordEnd[i]   = coordMid[i] + cellSide/2.0 - eps/2.0;
-        coord[i] = coordStart[i];
-    }
-
-    double res = 0.0;
-    for (int i = 0; i < pow_n_NDIM; i++) {
-        double rsq = 0;
-        for (short j = 0; j < NDIM; j++) {
-            rsq += pow(coord[j] - 0.5, 2);
-        }
-        double rho = exp(-rsq / (2 * sigma)) / pow(2 * M_PI * sigma*sigma, 1.5);
-        res += rho;
-
-        if (i == pow_n_NDIM-1) {
-            for (int k = 0; k < NDIM; k++) {
-                if (!(abs(coord[k] - coordEnd[k]) < STEP_EPS/10.0)) throw runtime_error("did not reach the upper right corner");
-            }
-            break;
-        }
-
-        size_t idx = 0;
-        while (idx < NDIM) {
-            if (abs(coord[idx] - coordEnd[idx]) < STEP_EPS/10.0) {
-                coord[idx] = coordStart[idx];
-                idx++;
-                if (idx == NDIM) throw runtime_error("impossible: went out of the upper right corner");
-            } else break;
-        }
-        coord[idx] += eps;
-    }
-    
-    return res / pow_n_NDIM;
-}*/
 __device__ float rhoFunc(const double coord[NDIM], const double sigma) {
     double rsq = 0;
     for (short i = 0; i < NDIM; i++) {
@@ -175,97 +130,97 @@ bool refCrit(float rho) {
     return rho > rho_crit;
 }
 
-// compute the index of the parent cell
-void getParentIdx(const idx4 &idx_cell, idx4 &idx_parent) {
+// compute the index of the parent oct
+void getParentIdx(const idx4 &idx_oct, idx4 &idx_parent) {
     for (short i = 0; i < NDIM; i++) {
-        idx_parent.idx3[i] = idx_cell.idx3[i] / 2;
+        idx_parent.idx3[i] = idx_oct.idx3[i] / 2;
     }
-    idx_parent.L = idx_cell.L - 1;
+    idx_parent.L = idx_oct.L - 1;
 }
 
-// compute the indices of the neighbor cells on a given face
-__host__ __device__ void getNeighborIdx(const idx4 idx_cell, const int dir, const bool pos, idx4 &idx_neighbor) {
+// compute the indices of the neighbor octs on a given face
+__host__ __device__ void getNeighborIdx(const idx4 idx_oct, const int dir, const bool pos, idx4 &idx_neighbor) {
     // after this getNeighborIdx is applied, must check if neighbor exists (border) !!!
     for (short i = 0; i < NDIM; i++) {
-        idx_neighbor.idx3[i] = idx_cell.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
+        idx_neighbor.idx3[i] = idx_oct.idx3[i] + (int(pos) * 2 - 1) * int(i == dir);
     }
-    idx_neighbor.L = idx_cell.L;
+    idx_neighbor.L = idx_oct.L;
 }
 
 // check if a given face is a border of the computational domain
-__host__ __device__ void checkIfBorder(const idx4 &idx_cell, const int dir, const bool pos, bool &is_border) {
-    is_border = idx_cell.idx3[dir] == int(pos) * (pow(2, idx_cell.L) - 1);
+__host__ __device__ void checkIfBorder(const idx4 &idx_oct, const int dir, const bool pos, bool &is_border) {
+    is_border = idx_oct.idx3[dir] == int(pos) * (pow(2, idx_oct.L) - 1);
 }
 
 template <typename Map>
-__device__ void keyExists(const idx4 idx_cell, Map hashtable_ref, bool &res) {
-    res = hashtable_ref.find(idx_cell) != hashtable_ref.end();
+__device__ void keyExists(const idx4 idx_oct, Map hashtable_ref, bool &res) {
+    res = hashtable_ref.find(idx_oct) != hashtable_ref.end();
 }
 
 template <typename Map>
-__device__ void getNeighborInfo(const idx4 idx_cell, const int dir, const bool pos, 
+__device__ void getNeighborInfo(const idx4 idx_oct, const int dir, const bool pos, 
                                 bool &is_ref, float &rho_neighbor, Map hashtable_ref) {
     idx4 idx_neighbor;
     int idx1_parent_neighbor;
     bool is_border, is_notref, exists;
-    // check if the cell is a border cell
-    checkIfBorder(idx_cell, dir, pos, is_border);
+    // check if the oct is a border oct
+    checkIfBorder(idx_oct, dir, pos, is_border);
     // compute the index of the neighbor on the same level
-    getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
-    // if the neighbor on the same level does not exist and the cell is not a border cell, then the neighbor is not refined
+    getNeighborIdx(idx_oct, dir, pos, idx_neighbor);
+    // if the neighbor on the same level does not exist and the oct is not a border oct, then the neighbor is not refined
     keyExists(idx_neighbor, hashtable_ref, exists); 
     is_notref = !exists && !is_border;
     is_ref = !is_notref && !is_border;
-    // if the cell is a border cell, set the neighbor index to the cell index (we just want a valid key for the hashtable)
-    // if the neighbor is not refined, set the neighbor index to the index of the parent cell's neighbor
+    // if the oct is a border oct, set the neighbor index to the oct index (we just want a valid key for the hashtable)
+    // if the neighbor is not refined, set the neighbor index to the index of the parent octs neighbor
     // if the neighbor is refined, don't change the neighbor index
 
     if (is_notref)
         printf("is_notref %d ni %d nj %d nk %d exists %d is_border %d  i %d j %d k %d\n", is_notref, idx_neighbor.idx3[0], 
-            idx_neighbor.idx3[1], idx_neighbor.idx3[2], exists, is_border, idx_cell.idx3[0], idx_cell.idx3[1], 
-            idx_cell.idx3[2]);
+            idx_neighbor.idx3[1], idx_neighbor.idx3[2], exists, is_border, idx_oct.idx3[0], idx_oct.idx3[1], 
+            idx_oct.idx3[2]);
 
     for (short i = 0; i < NDIM; i++) {
-        idx1_parent_neighbor = idx_cell.idx3[i] / 2 + (int(pos) * 2 - 1) * int(i == dir);
-        idx_neighbor.idx3[i] = idx_cell.idx3[i] * int(is_border) + idx_neighbor.idx3[i] * int(is_ref) 
+        idx1_parent_neighbor = idx_oct.idx3[i] / 2 + (int(pos) * 2 - 1) * int(i == dir);
+        idx_neighbor.idx3[i] = idx_oct.idx3[i] * int(is_border) + idx_neighbor.idx3[i] * int(is_ref) 
                                 + idx1_parent_neighbor * int(is_notref);
     }
     // subtract one from the AMR level if the neighbor is not refined
-    idx_neighbor.L = idx_cell.L - int(is_notref);
+    idx_neighbor.L = idx_oct.L - int(is_notref);
 
-    // if the cell is a border cell, use the boundary condition
-    Cell* pCell = hashtable_ref.find(idx_neighbor)->second;
-    rho_neighbor = pCell->rho * int(!is_border) + rho_boundary * int(is_border);
+    // if the oct is a border oct, use the boundary condition
+    Oct* pOct = hashtable_ref.find(idx_neighbor)->second;
+    rho_neighbor = pOct->rho * int(!is_border) + rho_boundary * int(is_border);
 
-    /*if (idx_cell == idx4(1, 1, 1, 2))
+    /*if (idx_oct == idx4(1, 1, 1, 2))
         printf("neighbor [%d, %d, %d](L=%d) %d %f %f\n", idx_neighbor.idx3[0], idx_neighbor.idx3[1], 
-            idx_neighbor.idx3[2], idx_neighbor.L, is_border, rho_boundary, pCell->rho);*/
+            idx_neighbor.idx3[2], idx_neighbor.L, is_border, rho_boundary, pOct->rho);*/
 }
 
-// compute the gradient for one cell
+// compute the gradient for one oct
 template <typename Map>
-__device__ void calcGradCell(const idx4 idx_cell, Cell* cell, Map hashtable_ref) {
+__device__ void calcGradOct(const idx4 idx_oct, Oct* oct, Map hashtable_ref) {
     bool is_ref[2];
     // explicitly use NDIM == 3
     double dx;
     float rho[3];
     int fd_case;
 
-    dx = pow(0.5, idx_cell.L);
-    rho[2] = cell->rho;
+    dx = pow(0.5, idx_oct.L);
+    rho[2] = oct->rho;
 
-    /*if (idx_cell == idx4(1, 1, 1, 2)) {
+    /*if (idx_oct == idx4(1, 1, 1, 2)) {
         printf("\n");
     }*/
 
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
-            getNeighborInfo(idx_cell, dir, pos, is_ref[pos], rho[pos], hashtable_ref);
+            getNeighborInfo(idx_oct, dir, pos, is_ref[pos], rho[pos], hashtable_ref);
         }
         fd_case = is_ref[0] + 2 * is_ref[1];
-        cell->rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2]
+        oct->rho_grad[dir] = (FD_KERNEL[fd_case][0] * rho[0] + FD_KERNEL[fd_case][1] * rho[2]
                              + FD_KERNEL[fd_case][2] * rho[1]) / (FD_KERNEL[fd_case][3] * dx);
-        /*if (idx_cell == idx4(1, 1, 1, 2)) {
+        /*if (idx_oct == idx4(1, 1, 1, 2)) {
             printf("%d %f %f %f\n", dir, rho[0], rho[1], rho[2]);
         }*/
     }
@@ -278,9 +233,9 @@ __global__ void calcGrad(Map hashtable_ref, KeyIter contained_keys, size_t num_k
     contained_keys += tid;
 
     while (tid < num_keys) {
-        idx4 idx_cell = *contained_keys;
-        Cell *pCell = hashtable_ref.find(idx_cell)->second;
-        calcGradCell(idx_cell, pCell, hashtable_ref);
+        idx4 idx_oct = *contained_keys;
+        Oct *pOct = hashtable_ref.find(idx_oct)->second;
+        calcGradOct(idx_oct, pOct, hashtable_ref);
 
         contained_keys += gridDim.x * blockDim.x;
         tid += gridDim.x * blockDim.x;
@@ -289,17 +244,26 @@ __global__ void calcGrad(Map hashtable_ref, KeyIter contained_keys, size_t num_k
 
 template <typename KeyIter, typename ValueIter>
 void writeGrid(KeyIter keys_iter, ValueIter underl_values_iter, size_t num_keys, string filename) {
-    // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
+    // save i, j, k, L, rho, gradients for all octs (use the iterator) to a file
     ofstream outfile;
     outfile.open(filename);
-    outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
+    outfile << "i,j,k,L,flag_leaf";
+    for (int j = 0; j < 8; j++) {
+        outfile << ",rho" << j << ",rho_grad_x" << j << ",rho_grad_y" << j << ",rho_grad_z" << j;
+    }
+    outfile << "\n";
     for (int i = 0; i < num_keys; i++) {
-        idx4 idx_cell = *keys_iter;
-        Cell cell = *underl_values_iter;
+        idx4 idx_oct = *keys_iter;
+        Oct oct = *underl_values_iter;
 
-        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
-                << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
-                << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
+        outfile << idx_oct.idx3[0] << "," << idx_oct.idx3[1] << "," << idx_oct.idx3[2]
+                << "," << idx_oct.L;
+        
+        for (int j = 0; j < 8; j++) {
+            outfile << "," << oct.flag_leaf[j] << "," << oct.rho[j] << "," << oct.rho_grad[j][0]
+                << "," << oct.rho_grad[j][1] << "," << oct.rho_grad[j][2];       
+        }
+        outfile << "\n";
 
         keys_iter++;
         underl_values_iter++;
@@ -307,18 +271,27 @@ void writeGrid(KeyIter keys_iter, ValueIter underl_values_iter, size_t num_keys,
     outfile.close();
 }
 
-void writeGrid(thrust::device_vector<idx4> &insert_keys, thrust::device_vector<Cell> &insert_vals, string filename) {
-    // save i, j, k, L, rho, gradients for all cells (use the iterator) to a file
+void writeGrid(thrust::device_vector<idx4> &insert_keys, thrust::device_vector<Oct> &insert_vals, string filename) {
+    // save i, j, k, L, rho, gradients for all octs (use the iterator) to a file
     ofstream outfile;
     outfile.open(filename);
-    outfile << "i,j,k,L,flag_leaf,rho,rho_grad_x,rho_grad_y,rho_grad_z\n";
+    outfile << "i,j,k,L,flag_leaf";
+    for (int j = 0; j < 8; j++) {
+        outfile << ",rho" << j << ",rho_grad_x" << j << ",rho_grad_y" << j << ",rho_grad_z" << j;
+    }
+    outfile << "\n";
     for (int i = 0; i < insert_keys.size(); i++) {
-        idx4 idx_cell = insert_keys[i];
-        Cell cell = insert_vals[i];
+        idx4 idx_oct = insert_keys[i];
+        Oct oct = insert_vals[i];
 
-        outfile << idx_cell.idx3[0] << "," << idx_cell.idx3[1] << "," << idx_cell.idx3[2]
-                << "," << idx_cell.L << "," << cell.flag_leaf << "," << cell.rho << "," << cell.rho_grad[0]
-                << "," << cell.rho_grad[1] << "," << cell.rho_grad[2] << "\n";
+        outfile << idx_oct.idx3[0] << "," << idx_oct.idx3[1] << "," << idx_oct.idx3[2]
+                << "," << idx_oct.L;
+        
+        for (int j = 0; j < 8; j++) {
+            outfile << "," << oct.flag_leaf[j] << "," << oct.rho[j] << "," << oct.rho_grad[j][0]
+                << "," << oct.rho_grad[j][1] << "," << oct.rho_grad[j][2];       
+        }
+        outfile << "\n";
     }
     outfile.close();
 }
@@ -327,7 +300,7 @@ template <typename KeyIter, typename ValueIter>
 __global__ void make1lvlGrid(KeyIter insert_keys_it, ValueIter insert_vals_it, int L, size_t num_inserted, 
                              bool to_offset) {
     long int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    //constexpr uint32_t NCELL_MAX_DEVICE[10] = {2, 16, 128, 1024, 8192, 65536, 524288, 4194304, 
+    //constexpr uint32_t NOCT_MAX_DEVICE[10] = {2, 16, 128, 1024, 8192, 65536, 524288, 4194304, 
     //    33554432, 268435456};
 
     while (tid < num_inserted) {
@@ -335,38 +308,38 @@ __global__ void make1lvlGrid(KeyIter insert_keys_it, ValueIter insert_vals_it, i
         long int offset = 0;
         if (to_offset)
             offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
-        idx4 idx_cell;
+        idx4 idx_oct;
 
-        getIndexInv(index, L, idx_cell);
-        insert_keys_it[index + offset] = idx_cell;
-        setGridCell(idx_cell, index, true, insert_vals_it, num_inserted, to_offset); // cells have flag_leaf == 1 at L == lbase == 3
+        getIndexInv(index, L, idx_oct);
+        insert_keys_it[index + offset] = idx_oct;
+        setGridOct(idx_oct, index, true, insert_vals_it, num_inserted, to_offset); // octs have flag_leaf == 1 at L == lbase == 3
         
         tid += gridDim.x * blockDim.x;
     }
 }
 
-// set a grid cell in the grid array and the hash table
+// set a grid oct in the grid array and the hash table
 template <typename DevicePtr>
-__device__ void setGridCell(const idx4 idx_cell, const long int index, int32_t flag_leaf,
+__device__ void setGridOct(const idx4 idx_oct, const long int index, int32_t flag_leaf,
                 DevicePtr insert_vals_it, uint32_t num_inserted, bool to_offset=true) {
     long int offset = 0;
     if (to_offset)
-        offset = (pow(2, NDIM * idx_cell.L) - 1) / (pow(2, NDIM) - 1);
+        offset = (pow(2, NDIM * idx_oct.L) - 1) / (pow(2, NDIM) - 1);
     // explicitly use NDIM == 3
     double dx, coord[3];
-    dx = 1.0 / pow(2, idx_cell.L);
+    dx = 1.0 / pow(2, idx_oct.L);
     for (int i = 0; i < NDIM; i++) {
-        coord[i] = idx_cell.idx3[i] * dx + dx / 2;
+        coord[i] = idx_oct.idx3[i] * dx + dx / 2;
     }
 
     if (offset + index >= num_inserted) 
-        printf("ERROR: offset + index >= NCELL_MAX; offset %ld index %ld ncell_max %u\n", offset, index, num_inserted);
-    Cell cell = *(insert_vals_it + offset + index);
-    if (!(cell == Cell())) printf("ERROR setting existing cell\n");
+        printf("ERROR: offset + index >= NOCT_MAX; offset %ld index %ld NOCT_MAX %u\n", offset, index, num_inserted);
+    Oct oct = *(insert_vals_it + offset + index);
+    if (!(oct == Oct())) printf("ERROR setting existing oct\n");
     
-    insert_vals_it[offset + index] = Cell(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, flag_leaf);
+    insert_vals_it[offset + index] = Oct(rhoFunc(coord, sigma), 0.0, 0.0, 0.0, flag_leaf);
     //printf("HOST ");
-    //idx_cell.print();
+    //idx_oct.print();
     //insert_vals_it[offset + index].print();
     //printf("\n");
 }
@@ -376,38 +349,38 @@ __device__ void setGridCell(const idx4 idx_cell, const long int index, int32_t f
 void refineGrid1lvl(host_map &host_table) {
     for (auto kv : host_table) {
         if (refCrit(kv.second.rho) && kv.second.flag_leaf) {
-            refineGridCell(kv.first, host_table);
+            refineGridOct(kv.first, host_table);
         }
     }
 }
 
-// set child cells in the grid array and hash table
+// set child octs in the grid array and hash table
 // unsynced with getHindex
-void setGridChildren(idx4 idx_cell, short i, 
+void setGridChildren(idx4 idx_oct, short i, 
                        host_map &host_table) {
     if (i == NDIM) {
         long int hindex;
-        getHindex(idx_cell, hindex);
-        setGridCell(idx_cell, hindex, 1, host_table);
+        getHindex(idx_oct, hindex);
+        setGridOct(idx_oct, hindex, 1, host_table);
         return;
     }
-    setGridChildren(idx_cell, i+1, host_table);
-    idx_cell.idx3[i]++;
-    setGridChildren(idx_cell, i+1, host_table);
+    setGridChildren(idx_oct, i+1, host_table);
+    idx_oct.idx3[i]++;
+    setGridChildren(idx_oct, i+1, host_table);
 }
 
-// refine a grid cell
+// refine a grid oct
 // unsynced with getHindex
-void refineGridCell(const idx4 idx_cell, host_map &host_table) {
+void refineGridOct(const idx4 idx_oct, host_map &host_table) {
     long int hindex;
-    getHindex(idx_cell, hindex);
-    if (!keyExists(idx_cell, host_table)) throw runtime_error("Trying to refine non-existant cell! "+idx_cell.str());
-    Cell cell = host_table[idx_cell];
-    if (cell.flag_leaf) throw runtime_error("trying to refine non-leaf");
-    if (idx_cell.L == LMAX) throw runtime_error("trying to refine at max level");
-    // make this cell a non-leaf
-    cell.flag_leaf = 0;
-    idx4 idx_child(idx_cell.idx3, size_t(idx_cell.L + 1));
+    getHindex(idx_oct, hindex);
+    if (!keyExists(idx_oct, host_table)) throw runtime_error("Trying to refine non-existant oct! "+idx_oct.str());
+    Oct oct = host_table[idx_oct];
+    if (oct.flag_leaf) throw runtime_error("trying to refine non-leaf");
+    if (id_oct.L == LMAX) throw runtime_error("trying to refine at max level");
+    // make this oct a non-leaf
+    oct.flag_leaf = 0;
+    idx4 idx_child(idx_oct.idx3, size_t(idx_oct.L + 1));
     for (short dir = 0; dir < NDIM; dir++) idx_child.idx3[dir] *= 2;
     // and create 2^NDIM leaf children
     setGridChildren(idx_child, 0, host_table);
@@ -416,17 +389,17 @@ void refineGridCell(const idx4 idx_cell, host_map &host_table) {
     for (short dir = 0; dir < NDIM; dir++) {
         for (short pos = 0; pos < 2; pos++) {
             bool is_border;
-            checkIfBorder(idx_cell, dir, pos, is_border);
+            checkIfBorder(idx_oct, dir, pos, is_border);
             if (is_border) continue;
-            getNeighborIdx(idx_cell, dir, pos, idx_neighbor);
+            getNeighborIdx(idx_oct, dir, pos, idx_neighbor);
             if (keyExists(idx_neighbor, host_table)) continue;
             // we assume that L is at most different by 1
-            getParentIdx(idx_cell, idx_parent);
+            getParentIdx(idx_oct, idx_parent);
             if (!keyExists(idx_parent, host_table))
-                throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_cell.str());
+                throw runtime_error("idx_parent does not exist! "+idx_parent.str()+' '+idx_oct.str());
             getNeighborIdx(idx_parent, dir, pos, idx_neighbor);
             if (!keyExists(idx_neighbor, host_table)) continue; // parent is at border
-            refineGridCell(idx_neighbor, host_table);
+            refineGridOct(idx_neighbor, host_table);
         }
     }
 }*/
@@ -462,9 +435,9 @@ __global__ void insert(Map map_ref,
     while (tid < num_keys) {
         // Map::insert returns `true` if it is the first time the given key was
         // inserted and `false` if the key already existed
-        thrust::tuple<idx4, Cell*> t = thrust::make_tuple(key_begin[tid], value_begin[tid]);
-        idx4 idx_cell = t.get<0>();
-        Cell *pCell = t.get<1>();
+        thrust::tuple<idx4, Oct*> t = thrust::make_tuple(key_begin[tid], value_begin[tid]);
+        idx4 idx_oct = t.get<0>();
+        Oct *pOct = t.get<1>();
 
         // this is ok because all threads go into the if
         if (map_ref.insert(cuco::pair{key_begin[tid], value_begin[tid]})) {
@@ -486,13 +459,13 @@ __global__ void printHashtable(KeyIter key_iter, Map hashtable_ref, int32_t num_
 
     for (int i = 0; i < num_keys; i++) { //auto it = zipped; it != zipped + num_keys; it++
         thrust::tuple<idx4> t = *zipped;
-        idx4 idx_cell = t.get<0>();
-        Cell* pCell = hashtable_ref.find(idx_cell)->second; //t.get<1>();
+        idx4 idx_oct = t.get<0>();
+        Oct* pOct = hashtable_ref.find(idx_oct)->second; //t.get<1>();
         
         printf("GPU ");
-        idx_cell.print();
-        if (!pCell) printf("ERROR: accessing null cell ptr");
-        pCell->print();
+        idx_oct.print();
+        if (!pOct) printf("ERROR: accessing null oct ptr");
+        pOct->print();
         printf("\n");
         zipped++;
     }
@@ -505,12 +478,12 @@ void test_unordered_map() {
 }
 
 void test_makeBaseGrid() {
-    int32_t num_cells = 0;
+    int32_t num_octs = 0;
     for (int L = 0; L < LBASE; L++) {
-        num_cells += pow(2, NDIM * L);
+        num_octs += pow(2, NDIM * L);
     }
-    thrust::device_vector<idx4> insert_keys(num_cells);
-    thrust::device_vector<Cell> underl_values(num_cells);
+    thrust::device_vector<idx4> insert_keys(num_octs);
+    thrust::device_vector<Oct> underl_values(num_octs);
     
     cout << "Making base grid" << endl;
     for (int L = 0; L < LBASE; L++) {
@@ -527,12 +500,12 @@ void test_makeBaseGrid() {
 
     // hashtable insert values from host_table
 
-    thrust::device_vector<Cell*> insert_values(num_cells);
+    thrust::device_vector<Oct*> insert_values(num_octs);
 
     thrust::device_vector<int> num_inserted(1);
     insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
                                                       thrust::raw_pointer_cast(underl_values.data()),
-                                                      num_cells,
+                                                      num_octs,
                                                       num_inserted.data().get());
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
@@ -540,9 +513,9 @@ void test_makeBaseGrid() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<uint32_t, NCELL_MAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<uint32_t, 16*NOCT_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
-                                      cuco::empty_value{empty_pcell_sentinel},
+                                      cuco::empty_value{empty_poct_sentinel},
                                       thrust::equal_to<idx4>{},
                                       cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
     auto insert_ref = hashtable.ref(cuco::insert);
@@ -553,7 +526,7 @@ void test_makeBaseGrid() {
     insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
                                       insert_keys.begin(),
                                       insert_values.begin(),
-                                      num_cells,
+                                      num_octs,
                                       num_inserted.data().get());
 
     cudaDeviceSynchronize();
@@ -563,7 +536,7 @@ void test_makeBaseGrid() {
 
 
     thrust::device_vector<idx4> contained_keys(num_inserted[0]);
-    thrust::device_vector<Cell*> contained_values(num_inserted[0]);
+    thrust::device_vector<Oct*> contained_values(num_inserted[0]);
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
 
     printHashtable<<<1, 1>>>(contained_keys.begin(), hashtable.ref(cuco::find), num_inserted[0]);
@@ -593,16 +566,16 @@ void test_makeBaseGrid() {
 }
 
 void test_gradients_baseGrid() {
-    int32_t num_cells = pow(2, NDIM * LBASE);
+    int32_t num_octs = pow(2, NDIM * LBASE);
     
     cout << "Making base grid" << endl;
-    thrust::device_vector<idx4> insert_keys(num_cells);
-    thrust::device_vector<Cell> underl_values(num_cells);
+    thrust::device_vector<idx4> insert_keys(num_octs);
+    thrust::device_vector<Oct> underl_values(num_octs);
     
     make1lvlGrid<<<GRID_SIZE, BLOCK_SIZE>>>(insert_keys.begin(),
                                             underl_values.begin(), 
                                             LBASE,
-                                            num_cells,
+                                            num_octs,
                                             false);
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
@@ -619,12 +592,12 @@ void test_gradients_baseGrid() {
 
     // hashtable insert values from host_table
 
-    thrust::device_vector<Cell*> insert_values(num_cells);
+    thrust::device_vector<Oct*> insert_values(num_octs);
 
     thrust::device_vector<int> num_inserted(1);
     insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
                                                       thrust::raw_pointer_cast(underl_values.data()),
-                                                      num_cells,
+                                                      num_octs,
                                                       num_inserted.data().get());
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
@@ -632,9 +605,9 @@ void test_gradients_baseGrid() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<std::size_t, NCELL_MAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<std::size_t, 16*NOCT_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
-                                      cuco::empty_value{empty_pcell_sentinel},
+                                      cuco::empty_value{empty_poct_sentinel},
                                       thrust::equal_to<idx4>{},
                                       cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
     auto insert_ref = hashtable.ref(cuco::insert);
@@ -645,7 +618,7 @@ void test_gradients_baseGrid() {
     insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
                                       insert_keys.begin(),
                                       insert_values.begin(),
-                                      num_cells,
+                                      num_octs,
                                       num_inserted.data().get());
 
     cudaDeviceSynchronize();
@@ -655,7 +628,7 @@ void test_gradients_baseGrid() {
 
     
     thrust::device_vector<idx4> contained_keys(num_inserted[0]);
-    thrust::device_vector<Cell*> contained_values(num_inserted[0]);
+    thrust::device_vector<Oct*> contained_values(num_inserted[0]);
     // this is random ordered and is DIFFERENT from insert_keys order
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
 
@@ -687,14 +660,14 @@ void test_gradients_baseGrid() {
 template <typename KeyIter, typename ValueIter>
 double time_calcGrad(int block_size, int L,
                         KeyIter insert_keys_it, ValueIter insert_vals_it, 
-                        int32_t num_cells, int repeat=1) {
+                        int32_t num_octs, int repeat=1) {
     auto start = high_resolution_clock::now();
 
     thrust::device_vector<int> num_inserted(1);
     
-    auto hashtable = cuco::static_map{cuco::extent<uint32_t, NCELL_MAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<uint32_t, 2*NOCT_MAX>{},
                                     cuco::empty_key{empty_idx4_sentinel},
-                                    cuco::empty_value{empty_pcell_sentinel},
+                                    cuco::empty_value{empty_poct_sentinel},
                                     thrust::equal_to<idx4>{},
                                     cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
     auto insert_ref = hashtable.ref(cuco::insert);
@@ -708,7 +681,7 @@ double time_calcGrad(int block_size, int L,
     insert<<<GRID_SIZE, BLOCK_SIZE>>>(insert_ref,
                                     insert_keys_it,
                                     insert_vals_it,
-                                    num_cells,
+                                    num_octs,
                                     num_inserted.data().get());
 
     cudaDeviceSynchronize();
@@ -721,7 +694,7 @@ double time_calcGrad(int block_size, int L,
     cout << "time for GPU insert: " << duration.count()/1000.0 << " ms" << endl;
 
     /*thrust::device_vector<idx4> contained_keys(num_inserted[0]);
-    thrust::device_vector<Cell*> contained_values(num_inserted[0]);
+    thrust::device_vector<Oct*> contained_values(num_inserted[0]);
     // this is random ordered and is DIFFERENT from insert_keys order
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
 
@@ -733,7 +706,7 @@ double time_calcGrad(int block_size, int L,
     start = high_resolution_clock::now();
     cout << "time for retrieve_all: " << duration.count()/1000.0 << " ms" << endl;*/
 
-    auto grid_size = (NCELL_MAX_ARR[L] + block_size - 1) / block_size;
+    auto grid_size = (NOCT_MAX_ARR[L] + block_size - 1) / block_size;
     printf("num threads: %ld\n", grid_size*block_size);
 
     double avg_time = 0;
@@ -770,11 +743,11 @@ void test_speed() {
         auto start0 = high_resolution_clock::now();
         auto start = start0;
 
-        auto grid_size = (NCELL_MAX_ARR[L] + block_size - 1) / block_size;
-        int32_t num_cells = pow(2, NDIM * L);
+        auto grid_size = (NOCT_MAX_ARR[L] + block_size - 1) / block_size;
+        int32_t num_octs = pow(2, NDIM * L);
         
-        thrust::device_vector<idx4> insert_keys(num_cells);
-        thrust::device_vector<Cell> underl_values(num_cells);
+        thrust::device_vector<idx4> insert_keys(num_octs);
+        thrust::device_vector<Oct> underl_values(num_octs);
         
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(stop - start);
@@ -784,7 +757,7 @@ void test_speed() {
         make1lvlGrid<<<grid_size, block_size>>>(insert_keys.begin(),
                                                 underl_values.begin(), 
                                                 L,
-                                                num_cells,
+                                                num_octs,
                                                 false);
 
         stop = high_resolution_clock::now();
@@ -793,7 +766,7 @@ void test_speed() {
         cout << "Time after GPU make1lvlGrid: " << duration.count()/1000.0 << " ms" << endl;
 
 
-        thrust::device_vector<Cell*> insert_values(num_cells);
+        thrust::device_vector<Oct*> insert_values(num_octs);
 
         stop = high_resolution_clock::now();
         duration = duration_cast<microseconds>(stop - start);
@@ -803,7 +776,7 @@ void test_speed() {
         thrust::device_vector<int> num_inserted(1);
         insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
                                                         thrust::raw_pointer_cast(underl_values.data()),
-                                                        num_cells,
+                                                        num_octs,
                                                         num_inserted.data().get());
         cudaDeviceSynchronize();
         CHECK_LAST_CUDA_ERROR();
@@ -816,7 +789,7 @@ void test_speed() {
         double avg_time = time_calcGrad(block_size, L,
                                         insert_keys.begin(),
                                         insert_values.begin(),
-                                        num_cells, 
+                                        num_octs, 
                                         10);
 
         outfile << L << "," << avg_time << endl;
@@ -837,11 +810,11 @@ void test_GPU_map() {
     //LBASE = 0; // override const
 
     thrust::device_vector<idx4> insert_keys(1);
-    thrust::device_vector<Cell> underl_values(1);
-    thrust::device_vector<Cell*> insert_values(1);
+    thrust::device_vector<Oct> underl_values(1);
+    thrust::device_vector<Oct*> insert_values(1);
 
     insert_keys[0] = idx4(0, 0, 0, 0);
-    underl_values[0] = Cell(1000.00, 0.00, 0.00, 0.00, 1);
+    underl_values[0] = Oct(1000.00, 0.00, 0.00, 0.00, 1);
 
     thrust::device_vector<int> num_inserted(1);
     insert_vector_pointers<<<GRID_SIZE, BLOCK_SIZE>>>(insert_values.begin(), 
@@ -854,9 +827,9 @@ void test_GPU_map() {
     cout << "Number of underlying values inserted: " << num_inserted[0] << std::endl;
 
     
-    auto hashtable = cuco::static_map{cuco::extent<uint32_t, NCELL_MAX>{},
+    auto hashtable = cuco::static_map{cuco::extent<uint32_t, 16*NOCT_MAX>{},
                                       cuco::empty_key{empty_idx4_sentinel},
-                                      cuco::empty_value{empty_pcell_sentinel},
+                                      cuco::empty_value{empty_poct_sentinel},
                                       thrust::equal_to<idx4>{},
                                       cuco::linear_probing<1, cuco::default_hash_function<idx4>>{}};
     auto insert_ref = hashtable.ref(cuco::insert);
@@ -877,7 +850,7 @@ void test_GPU_map() {
 
 
     thrust::device_vector<idx4> contained_keys(num_inserted[0]);
-    thrust::device_vector<Cell*> contained_values(num_inserted[0]);
+    thrust::device_vector<Oct*> contained_values(num_inserted[0]);
     hashtable.retrieve_all(contained_keys.begin(), contained_values.begin());
 
     printHashtable<<<1, 1>>>(contained_keys.begin(), hashtable.ref(cuco::find), num_inserted[0]);
@@ -908,8 +881,8 @@ void test_GPU_map() {
 int main() {
     printf("amr gpu hashtable\n");
     try {
-        /*if (NCELL_MAX != lround(2*pow(2, LMAX*NDIM))) {
-            throw runtime_error("NCELL_MAX != 2*2^(LMAX*NDIM); NCELL_MAX "+to_string(NCELL_MAX)+" 2*2^(LMAX*NDIM) "
+        /*if (NOCT_MAX != lround(2*pow(2, LMAX*NDIM))) {
+            throw runtime_error("NOCT_MAX != 2*2^(LMAX*NDIM); NOCT_MAX "+to_string(NOCT_MAX)+" 2*2^(LMAX*NDIM) "
                 +to_string(lround(2*pow(2, LMAX*NDIM))));
         }*/
 
