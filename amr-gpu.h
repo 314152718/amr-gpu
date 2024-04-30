@@ -14,12 +14,12 @@
 #include <limits>
 
 // gpu includes
-#include "cuco/static_map.cuh"
-#include <thrust/device_vector.h>
-#include <thrust/logical.h>
-#include <thrust/transform.h>
-#include <cub/block/block_reduce.cuh>
-#include <cuda/std/atomic>
+// #include "cuco/static_map.cuh"
+//#include <thrust/device_vector.h>
+//#include <thrust/logical.h>
+//#include <thrust/transform.h>
+//#include <cub/block/block_reduce.cuh>
+//#include <cuda/std/atomic>
 
 // namespaces
 using namespace std;
@@ -50,8 +50,8 @@ const int32_t NDIM = 3; // number of dimensions
 
 // uint32_t max val 4 294 967 295
 // lround(2*pow(2, LMAX*NDIM)); <- dont work
-constexpr uint32_t NCELL_MAX_ARR[11] = {1, 9, 73, 585, 4681, 37449, 299593, 2396745, 19173961, 153391689, 1227133513};
-constexpr uint32_t NCELL_MAX = 1227133513; //2396745 (7); //1227133513 (10); // 2097152 + 10;
+constexpr uint32_t NOCT_MAX_ARR[11] = {1, 9, 73, 585, 4681, 37449, 299593, 2396745, 19173961, 153391689, 1227133513};
+constexpr uint32_t NOCT_MAX = 153391689; //2396745 (7); //1227133513 (10); // 2097152 + 10;
 //2*2^15 = 70368744177664; 
 
 const int32_t IDX_MAX = pow(2, LMAX) - 1;
@@ -69,11 +69,12 @@ const double STEP_EPS = 0.00001;
 
 // GPU consts
 auto constexpr BLOCK_SIZE = 256; //32*n
-auto const GRID_SIZE  = (NCELL_MAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
+auto const GRID_SIZE  = (NOCT_MAX + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
 typedef unsigned short int uint16;
 auto const uint16_nan = numeric_limits<uint16>::quiet_NaN(); // size_t = uint16
 auto const double_nan = numeric_limits<double>::quiet_NaN();
+auto const float_nan = numeric_limits<float>::quiet_NaN();
 auto const int32t_nan = numeric_limits<int32_t>::quiet_NaN();
 
 // --------------- STRUCTS ------------ //
@@ -116,19 +117,19 @@ namespace std
     template<>
     struct hash<idx4> {
         // size_t ?? == uint16 -> max 65000
-        __host__ __device__ size_t operator()(const idx4& idx_cell) const noexcept {
+        __host__ __device__ size_t operator()(const idx4& idx_oct) const noexcept {
             // does not want to define it on device if put outside this function
             const int32_t HASH[4] = {-1640531527, 97, 1003313, 5};
-            size_t hashval = HASH[0] * idx_cell.idx3[0] + HASH[1] * idx_cell.idx3[1] + HASH[2] * idx_cell.idx3[2] + 
-                HASH[3] * idx_cell.L;
+            size_t hashval = HASH[0] * idx_oct.idx3[0] + HASH[1] * idx_oct.idx3[1] + HASH[2] * idx_oct.idx3[2] + 
+                HASH[3] * idx_oct.L;
             return hashval;
         };
     };
 }
 
 // custom key output stream representation
-ostream& operator<<(ostream &os, idx4 const &idx_cell) {
-    os << "[" << idx_cell.idx3[0] << ", " << idx_cell.idx3[1] << ", " << idx_cell.idx3[2] << "](L=" << idx_cell.L << ")";
+ostream& operator<<(ostream &os, idx4 const &idx_oct) {
+    os << "[" << idx_oct.idx3[0] << ", " << idx_oct.idx3[1] << ", " << idx_oct.idx3[2] << "](L=" << idx_oct.L << ")";
     return os;
 }
 
@@ -149,6 +150,53 @@ struct ramses_hash {
         int32_t hashval = HASH[0] * k.idx3[0] + HASH[1] * k.idx3[1] + HASH[2] * k.idx3[2] + HASH[3] * k.L;
         return hashval;
     };
+};
+
+struct Oct {
+    // explicitly use NDIM == 3: 8 = 2^3
+    float rho[8];
+    float rho_grad[8][NDIM];
+    int32_t flag_leaf[8];
+
+    __host__ __device__ Oct() {
+        rho = 0.0;
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < NDIM; i++) 
+                rho_grad[i][j] = 0.0;
+        }
+        flag_leaf = 0;
+    }
+    __host__ __device__ Oct(float rho_init[8], float rho_grad_init[8][NDIM], 
+        int32_t flag_leaf_init[8]) : rho{rho_init}, rho_grad{rho_grad_init}, flag_leaf{flag_leaf_init} {}
+
+    __host__ __device__ bool operator==(Oct const& other) const {
+        bool eq = true;
+        for (int i = 0; i < 8; i++) {
+            // explicitly use NDIM == 3: 8 = 2^3
+            eq &= (abs(rho[i] - other.rho[i]) < EPS && abs(rho_grad[i][0] - other.rho_grad[i][0]) < EPS
+                && abs(rho_grad[i][1] - other.rho_grad[i][1]) < EPS && abs(rho_grad[i][2] - other.rho_grad[i][2]) < EPS);
+        }
+        return eq;
+    }
+    __host__ __device__ void print() const {
+        for (int i = 0; i < 8; i++) {
+            printf("[%.2f, %.2f, %.2f, %.2f](Leaf=%d)", rho[i], rho_grad[i][0], rho_grad[i][1], rho_grad[i][2], flag_leaf[i]);
+        }
+    }
+    __host__ __device__ void println() const {
+        for (int i = 0; i < 8; i++) {
+            printf("[%.2f, %.2f, %.2f, %.2f](Leaf=%d)\n", rho[i], rho_grad[i][0], rho_grad[i][1], rho_grad[i][2], flag_leaf[i]);
+        }
+        printf("\n");
+    }
+    __host__ string str() const {
+        string s = "";
+        for (int i = 0; i < 8; i++) {
+            s += "["+to_string(rho[i])+", "+to_string(rho_grad[i][0])+", "+to_string(rho_grad[i][1])+", "+
+                    to_string(rho_grad[i][2])+"](Leaf="+to_string(flag_leaf[i])+")\n";
+        }
+        return s;
+    }
 };
 
 // custom value type
@@ -194,6 +242,10 @@ __host__ __device__ void println(Cell const &cell) {
     cell.println();
 }
 
+__host__ __device__ void println(Oct const &oct) {
+    oct.println();
+}
+
 // on host
 // purpose is to store size as well
 //typedef cuco::static_map<idx4, Cell*, cuco::extent<std::size_t, 2097162UL>, cuda::std::__4::__detail::thread_scope_device, idx4_equals, cuco::linear_probing<1, ramses_hash>, cuco::cuda_allocator<cuco::pair<idx4, Cell *>>
@@ -204,17 +256,34 @@ ostream& operator<<(ostream &os, Cell const &cell) {
        << cell.rho_grad[1] << ", rho_grad_z " << cell.rho_grad[2] << ", flag_leaf " << cell.flag_leaf << "]";
     return os;
 }
+
+ostream& operator<<(ostream &os, Oct const &oct) {
+    for (int i = 0; i < 8; i++) {
+        os << "[rho " << oct.rho << ", rho_grad_x " << oct.rho_grad[0] << ", rho_grad_y"
+           << oct.rho_grad[1] << ", rho_grad_z " << oct.rho_grad[2] << ", flag_leaf " << oct.flag_leaf << "]\n";
+    }
+    return os;
+}
+
 // ------------------------------------------------ //
 
 // typedefs
-typedef cuco::static_map<idx4, Cell*> map_type;
+//typedef cuco::static_map<idx4, Cell*> map_type;
 typedef unordered_map<idx4, Cell> host_map; //, ramses_hash<idx4>, idx4_equals<idx4>
 //typedef cuco::static_map<idx4, Cell*>::device_view map_view_type;
 
 // globals
 auto const empty_idx4_sentinel = idx4{0, 0, 0, -1}; // works same as with uint16_nan: cannot use 0, 0, 0, -1 idx4
-auto const empty_cell_sentinel = Cell{double_nan, double_nan, double_nan, double_nan, int32t_nan};
+auto const empty_cell_sentinel = Cell{float_nan, float_nan, float_nan, float_nan, int32t_nan};
+const float float_nan_arr[8];
+const int32_t int32t_nan_arr[8];
+for (int i = 0; i < 8; i++) {
+    float_nan_arr[i] = float_nan;
+    int32t_nan_arr[i] = int32t_nan;
+}
+auto const empty_oct_sentinel = Oct{float_nan_arr, float_nan_arr, float_nan_arr, float_nan_arr, int32t_nan_arr};
 Cell* empty_pcell_sentinel = nullptr;
+Oct* empty_poct_sentinel = nullptr;
 
 // --------------- FUNCTION DECLARATIONS ------------ //
 void checkLast(const char* const file, const int line);
