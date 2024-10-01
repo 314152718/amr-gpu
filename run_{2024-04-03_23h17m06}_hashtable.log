@@ -1,0 +1,4 @@
+amr gpu hashtable
+lbase = 8, best kernel block size: 1024 time: 44 ms
+
+

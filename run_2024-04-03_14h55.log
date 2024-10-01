@@ -1,0 +1,26 @@
+lbase = 2, best kernel block size: 32
+block_size = 32, time: 0.182 ms
+block_size = 32, time: 0.182 ms
+lbase = 3, best kernel block size: 32
+lbase = 3, Same time. Min block: 32, max block: 512
+
+block_size = 32, time: 0.182 ms
+block_size = 32, time: 0.182 ms
+lbase = 4, best kernel block size: 32
+lbase = 4, Same time. Min block: 32, max block: 512
+
+block_size = 32, time: 0.182 ms
+block_size = 32, time: 0.181 ms
+lbase = 5, best kernel block size: 32
+lbase = 5, Same time. Min block: 32, max block: 512
+
+block_size = 32, time: 0.187 ms
+block_size = 32, time: 0.192 ms
+lbase = 6, best kernel block size: 32
+lbase = 6, Same time. Min block: 32, max block: 512
+
+block_size = 32, time: 0.529 ms
+block_size = 32, time: 0.531 ms
+lbase = 7, best kernel block size: 224
+block_size = 224, time: 3.521 ms
+block_size = 224, time: 3.538 ms

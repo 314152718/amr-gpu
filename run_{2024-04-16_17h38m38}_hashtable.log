@@ -1,0 +1,23 @@
+amr gpu hashtable
+Time after creating insert_keys and underl_values: 1357.08 ms
+Time after GPU make1lvlGrid: 2.812 ms
+time after creating insert_values: 3.454 ms
+time for GPU insert_vector_pointers: 15.432 ms
+L = 7, block size 512
+time after creating hashtable and ref: 0.537 ms
+time for GPU insert: 19.449 ms
+time for retrieve_all: 10.938 ms
+num threads: 268435456
+block_size = 512, time: 5.473 ms
+block_size = 512, time: 5.438 ms
+block_size = 512, time: 5.443 ms
+block_size = 512, time: 5.434 ms
+block_size = 512, time: 5.438 ms
+block_size = 512, time: 5.44 ms
+block_size = 512, time: 5.442 ms
+block_size = 512, time: 5.445 ms
+block_size = 512, time: 5.44 ms
+block_size = 512, time: 5.437 ms
+
+
+Total time: 1467.09 ms

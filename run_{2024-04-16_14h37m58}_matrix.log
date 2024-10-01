@@ -1,0 +1,57 @@
+amr gpu matrix
+Time after device_vector creation: 99.329 ms
+Time after makeBaseGrid: 5.216 ms
+L = 7, block size 512
+num threads: 4194304
+block_size = 512, time: 2.672 ms
+block_size = 512, time: 2.627 ms
+block_size = 512, time: 2.634 ms
+block_size = 512, time: 2.631 ms
+block_size = 512, time: 2.624 ms
+block_size = 512, time: 2.637 ms
+block_size = 512, time: 2.626 ms
+block_size = 512, time: 2.621 ms
+block_size = 512, time: 2.634 ms
+block_size = 512, time: 2.623 ms
+block_size = 512, time: 2.621 ms
+block_size = 512, time: 2.629 ms
+block_size = 512, time: 2.616 ms
+block_size = 512, time: 2.629 ms
+block_size = 512, time: 2.628 ms
+block_size = 512, time: 2.623 ms
+block_size = 512, time: 2.642 ms
+block_size = 512, time: 2.642 ms
+block_size = 512, time: 2.62 ms
+block_size = 512, time: 2.637 ms
+block_size = 512, time: 2.615 ms
+block_size = 512, time: 2.619 ms
+block_size = 512, time: 2.629 ms
+block_size = 512, time: 2.635 ms
+block_size = 512, time: 2.63 ms
+block_size = 512, time: 2.633 ms
+block_size = 512, time: 2.636 ms
+block_size = 512, time: 2.614 ms
+block_size = 512, time: 2.623 ms
+block_size = 512, time: 2.625 ms
+block_size = 512, time: 2.628 ms
+block_size = 512, time: 2.621 ms
+block_size = 512, time: 2.618 ms
+block_size = 512, time: 2.618 ms
+block_size = 512, time: 2.627 ms
+block_size = 512, time: 2.626 ms
+block_size = 512, time: 2.629 ms
+block_size = 512, time: 2.615 ms
+block_size = 512, time: 2.631 ms
+block_size = 512, time: 2.627 ms
+block_size = 512, time: 2.633 ms
+block_size = 512, time: 2.626 ms
+block_size = 512, time: 2.612 ms
+block_size = 512, time: 2.623 ms
+block_size = 512, time: 2.624 ms
+block_size = 512, time: 2.623 ms
+block_size = 512, time: 2.629 ms
+block_size = 512, time: 2.643 ms
+block_size = 512, time: 2.633 ms
+block_size = 512, time: 2.613 ms
+
+Total time: 236.056 ms

@@ -1,0 +1,435 @@
+amr gpu matrix
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+lbase = 2, best kernel block size: 384
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+block_size = 384, time: 0.057 ms
+
+
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+lbase = 3, best kernel block size: 32
+lbase = 3, Same time. Min block: 32, max block: 768
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+
+
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+lbase = 4, best kernel block size: 32
+lbase = 4, Same time. Min block: 32, max block: 768
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.191 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.188 ms
+block_size = 32, time: 0.189 ms
+block_size = 32, time: 0.189 ms
+
+
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+lbase = 5, best kernel block size: 32
+lbase = 5, Same time. Min block: 32, max block: 768
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.194 ms
+block_size = 32, time: 0.192 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+block_size = 32, time: 0.193 ms
+
+
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+lbase = 6, best kernel block size: 32
+lbase = 6, Same time. Min block: 32, max block: 768
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.541 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.537 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.537 ms
+block_size = 32, time: 0.537 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.537 ms
+block_size = 32, time: 0.537 ms
+block_size = 32, time: 0.538 ms
+block_size = 32, time: 0.541 ms
+block_size = 32, time: 0.541 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.539 ms
+block_size = 32, time: 0.541 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.54 ms
+block_size = 32, time: 0.54 ms
+
+
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+lbase = 7, best kernel block size: 768
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+CUDA Runtime Error at: amr-gpu-matrix.cu:427
+too many resources requested for launch
+block_size = 768, time: 0.007 ms
+
+

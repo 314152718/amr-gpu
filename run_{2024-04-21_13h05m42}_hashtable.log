@@ -1,0 +1,170 @@
+amr gpu hashtable
+Time after creating insert_keys and underl_values: 1856.38 ms
+Time after GPU make1lvlGrid: 3.007 ms
+time after creating insert_values: 0.044 ms
+time for GPU insert_vector_pointers: 8.261 ms
+L = 2, block size 512
+time after creating hashtable and ref: 1.174 ms
+time for GPU insert: 10.637 ms
+num threads: 512
+block_size = 512, time: 0.388 ms
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+
+Total level time for L=2: 1881.76 ms
+
+Time after creating insert_keys and underl_values: 0.909 ms
+Time after GPU make1lvlGrid: 0.01 ms
+time after creating insert_values: 0.029 ms
+time for GPU insert_vector_pointers: 8.236 ms
+L = 3, block size 512
+time after creating hashtable and ref: 1.175 ms
+time for GPU insert: 10.686 ms
+num threads: 1024
+block_size = 512, time: 0.058 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.042 ms
+block_size = 512, time: 0.042 ms
+block_size = 512, time: 0.042 ms
+block_size = 512, time: 0.042 ms
+block_size = 512, time: 0.042 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.042 ms
+block_size = 512, time: 0.043 ms
+
+Total level time for L=3: 22.863 ms
+
+Time after creating insert_keys and underl_values: 1.076 ms
+Time after GPU make1lvlGrid: 0.009 ms
+time after creating insert_values: 0.029 ms
+time for GPU insert_vector_pointers: 8.236 ms
+L = 4, block size 512
+time after creating hashtable and ref: 1.178 ms
+time for GPU insert: 10.691 ms
+num threads: 5120
+block_size = 512, time: 0.058 ms
+block_size = 512, time: 0.045 ms
+block_size = 512, time: 0.043 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.044 ms
+block_size = 512, time: 0.045 ms
+
+Total level time for L=4: 23.047 ms
+
+Time after creating insert_keys and underl_values: 1.063 ms
+Time after GPU make1lvlGrid: 0.008 ms
+time after creating insert_values: 0.029 ms
+time for GPU insert_vector_pointers: 8.236 ms
+L = 5, block size 512
+time after creating hashtable and ref: 1.174 ms
+time for GPU insert: 10.992 ms
+num threads: 37888
+block_size = 512, time: 0.066 ms
+block_size = 512, time: 0.054 ms
+block_size = 512, time: 0.051 ms
+block_size = 512, time: 0.051 ms
+block_size = 512, time: 0.05 ms
+block_size = 512, time: 0.051 ms
+block_size = 512, time: 0.051 ms
+block_size = 512, time: 0.051 ms
+block_size = 512, time: 0.05 ms
+block_size = 512, time: 0.051 ms
+
+Total level time for L=5: 23.409 ms
+
+Time after creating insert_keys and underl_values: 1.749 ms
+Time after GPU make1lvlGrid: 0.009 ms
+time after creating insert_values: 1.039 ms
+time for GPU insert_vector_pointers: 9.284 ms
+L = 6, block size 512
+time after creating hashtable and ref: 1.247 ms
+time for GPU insert: 11.075 ms
+num threads: 300032
+block_size = 512, time: 0.199 ms
+block_size = 512, time: 0.19 ms
+block_size = 512, time: 0.189 ms
+block_size = 512, time: 0.187 ms
+block_size = 512, time: 0.187 ms
+block_size = 512, time: 0.187 ms
+block_size = 512, time: 0.189 ms
+block_size = 512, time: 0.192 ms
+block_size = 512, time: 0.188 ms
+block_size = 512, time: 0.189 ms
+
+Total level time for L=6: 27.683 ms
+
+Time after creating insert_keys and underl_values: 2.287 ms
+Time after GPU make1lvlGrid: 0.009 ms
+time after creating insert_values: 0.941 ms
+time for GPU insert_vector_pointers: 9.275 ms
+L = 7, block size 512
+time after creating hashtable and ref: 1.246 ms
+time for GPU insert: 11.496 ms
+num threads: 2397184
+block_size = 512, time: 1.226 ms
+block_size = 512, time: 1.218 ms
+block_size = 512, time: 1.214 ms
+block_size = 512, time: 1.214 ms
+block_size = 512, time: 1.216 ms
+block_size = 512, time: 1.214 ms
+block_size = 512, time: 1.214 ms
+block_size = 512, time: 1.217 ms
+block_size = 512, time: 1.217 ms
+block_size = 512, time: 1.214 ms
+
+Total level time for L=7: 39.594 ms
+
+Time after creating insert_keys and underl_values: 3.155 ms
+Time after GPU make1lvlGrid: 0.013 ms
+time after creating insert_values: 4.132 ms
+time for GPU insert_vector_pointers: 8.473 ms
+L = 8, block size 512
+time after creating hashtable and ref: 1.165 ms
+time for GPU insert: 14.926 ms
+num threads: 19174400
+block_size = 512, time: 11.897 ms
+block_size = 512, time: 11.879 ms
+block_size = 512, time: 11.878 ms
+block_size = 512, time: 8.611 ms
+block_size = 512, time: 7.149 ms
+block_size = 512, time: 7.146 ms
+block_size = 512, time: 7.144 ms
+block_size = 512, time: 7.156 ms
+block_size = 512, time: 7.166 ms
+block_size = 512, time: 7.16 ms
+
+Total level time for L=8: 121.217 ms
+
+Time after creating insert_keys and underl_values: 7.58 ms
+Time after GPU make1lvlGrid: 0.01 ms
+time after creating insert_values: 18.285 ms
+time for GPU insert_vector_pointers: 6.783 ms
+L = 9, block size 512
+time after creating hashtable and ref: 1.065 ms
+time for GPU insert: 46.619 ms
+num threads: 153392128
+block_size = 512, time: 389.801 ms
+block_size = 512, time: 384.316 ms
+block_size = 512, time: 384.229 ms
+block_size = 512, time: 384.469 ms
+block_size = 512, time: 384.299 ms
+block_size = 512, time: 384.309 ms
+block_size = 512, time: 384.349 ms
+block_size = 512, time: 384.296 ms
+block_size = 512, time: 384.338 ms
+block_size = 512, time: 384.248 ms
+
+Total level time for L=9: 3933.8 ms
+
+Total time: 6078.67 ms

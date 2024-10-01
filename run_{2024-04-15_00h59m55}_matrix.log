@@ -1,0 +1,69 @@
+amr gpu matrix
+Time after device_vector creation: 100.303 ms
+index = 0, time for dx: 0 ms
+index = 0, time for coord: 0.003 ms
+index = 0, time for setting a cell: 0.217 ms
+index = 0, time for setGridCell: 0.225 ms
+index = 100, time for dx: 0 ms
+index = 100, time for coord: 0.002 ms
+index = 100, time for setting a cell: 0.024 ms
+index = 100, time for setGridCell: 0.029 ms
+index = 200, time for dx: 0 ms
+index = 200, time for coord: 0.002 ms
+index = 200, time for setting a cell: 0.024 ms
+index = 200, time for setGridCell: 0.029 ms
+Time after makeBaseGrid: 46619.4 ms
+L = 7, block size 512
+num threads: 4194304
+block_size = 512, time: 5.582 ms
+block_size = 512, time: 2.696 ms
+block_size = 512, time: 2.694 ms
+block_size = 512, time: 2.703 ms
+block_size = 512, time: 2.714 ms
+block_size = 512, time: 2.698 ms
+block_size = 512, time: 2.705 ms
+block_size = 512, time: 2.686 ms
+block_size = 512, time: 2.703 ms
+block_size = 512, time: 2.691 ms
+block_size = 512, time: 2.702 ms
+block_size = 512, time: 2.709 ms
+block_size = 512, time: 2.704 ms
+block_size = 512, time: 2.706 ms
+block_size = 512, time: 2.713 ms
+block_size = 512, time: 2.685 ms
+block_size = 512, time: 2.72 ms
+block_size = 512, time: 2.71 ms
+block_size = 512, time: 2.705 ms
+block_size = 512, time: 2.696 ms
+block_size = 512, time: 2.718 ms
+block_size = 512, time: 2.689 ms
+block_size = 512, time: 2.428 ms
+block_size = 512, time: 2.202 ms
+block_size = 512, time: 2.209 ms
+block_size = 512, time: 2.208 ms
+block_size = 512, time: 2.209 ms
+block_size = 512, time: 2.211 ms
+block_size = 512, time: 2.206 ms
+block_size = 512, time: 2.199 ms
+block_size = 512, time: 2.207 ms
+block_size = 512, time: 2.221 ms
+block_size = 512, time: 2.207 ms
+block_size = 512, time: 2.22 ms
+block_size = 512, time: 2.209 ms
+block_size = 512, time: 2.207 ms
+block_size = 512, time: 2.213 ms
+block_size = 512, time: 2.184 ms
+block_size = 512, time: 2.224 ms
+block_size = 512, time: 2.199 ms
+block_size = 512, time: 2.211 ms
+block_size = 512, time: 2.189 ms
+block_size = 512, time: 2.205 ms
+block_size = 512, time: 2.216 ms
+block_size = 512, time: 2.201 ms
+block_size = 512, time: 2.209 ms
+block_size = 512, time: 2.205 ms
+block_size = 512, time: 2.21 ms
+block_size = 512, time: 2.204 ms
+block_size = 512, time: 2.2 ms
+
+Total time: 46844.2 ms

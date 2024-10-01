@@ -1,0 +1,125 @@
+amr gpu matrix
+Making base grid
+num_inserted 73
+
+Calculating gradients
+
+[4, 0, 0](L=2)[4, 0, 1](L=2)[4, 0, 2](L=2)[4, 0, 3](L=2)[4, 1, 0](L=2)[4, 1, 1](L=2)[4, 1, 2](L=2)[4, 1, 3](L=2)[4, 2, 0](L=2)cell 1 1 1 2; calcGradCell0 index 21 
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+
+ERROR: calcGrad idx_level[0] out of bounds; idx_level[0] 4
+cell 1 1 1 2; idx_neighbor i 0 j 1 k 1 L 2  dir 0 pos 0 rho_neighbor 11.762835
+calcGrad print start 73 64 64 2
+calcGrad print start 73 65 65 2
+calcGrad print start 73 66 66 2
+calcGrad print start 73 67 67 2
+calcGrad print start 73 68 68 2
+calcGrad print start 73 69 69 2
+calcGrad print start 73 70 70 2
+calcGrad print start 73 71 71 2
+calcGrad print start 73 72 72 2
+cell 1 1 1 2; idx_neighbor i 2 j 1 k 1 L 2  dir 0 pos 1 rho_neighbor 6093.299223
+is_notref 1 ni 5 nj 0 nk 0 exists 0 is_border 0  i 4 j 0 k 0
+is_notref 1 ni 5 nj 0 nk 1 exists 0 is_border 0  i 4 j 0 k 1
+is_notref 1 ni 5 nj 0 nk 2 exists 0 is_border 0  i 4 j 0 k 2
+is_notref 1 ni 5 nj 0 nk 3 exists 0 is_border 0  i 4 j 0 k 3
+is_notref 1 ni 5 nj 1 nk 0 exists 0 is_border 0  i 4 j 1 k 0
+is_notref 1 ni 5 nj 1 nk 1 exists 0 is_border 0  i 4 j 1 k 1
+is_notref 1 ni 5 nj 1 nk 2 exists 0 is_border 0  i 4 j 1 k 2
+is_notref 1 ni 5 nj 1 nk 3 exists 0 is_border 0  i 4 j 1 k 3
+is_notref 1 ni 5 nj 2 nk 0 exists 0 is_border 0  i 4 j 2 k 0
+cell 1 1 1 2; calcGradCell dir 0 rho0 11.76 rho1 6093.30 rho2 6093.30 fd_case 3 
+is_notref 1 ni 4 nj 2 nk 1 exists 0 is_border 0  i 4 j 1 k 1
+is_notref 1 ni 4 nj 2 nk 2 exists 0 is_border 0  i 4 j 1 k 2
+is_notref 1 ni 4 nj 2 nk 3 exists 0 is_border 0  i 4 j 1 k 3
+is_notref 1 ni 4 nj 3 nk 0 exists 0 is_border 0  i 4 j 2 k 0
+cell 1 1 1 2; idx_neighbor i 1 j 0 k 1 L 2  dir 1 pos 0 rho_neighbor 11.762835
+is_notref 1 ni 4 nj 2 nk 1 exists 0 is_border 0  i 4 j 2 k 0
+cell 1 1 1 2; idx_neighbor i 1 j 2 k 1 L 2  dir 1 pos 1 rho_neighbor 6093.299223
+cell 1 1 1 2; calcGradCell dir 1 rho0 11.76 rho1 6093.30 rho2 6093.30 fd_case 3 
+cell 1 1 1 2; idx_neighbor i 1 j 1 k 0 L 2  dir 2 pos 0 rho_neighbor 11.762835
+cell 1 1 1 2; idx_neighbor i 1 j 1 k 2 L 2  dir 2 pos 1 rho_neighbor 6093.299223
+cell 1 1 1 2; calcGradCell dir 2 rho0 11.76 rho1 6093.30 rho2 6093.30 fd_case 3 
+5 ms
+
+
+GPU hashmap num_keys 73
+GPU [0, 0, 0](L=2) 0 [0.00, 0.05, 0.05, 0.05](Leaf=-1)
+GPU [0, 0, 1](L=2) 1 [0.02, 28.20, 28.20, 0.05](Leaf=-1)
+GPU [0, 0, 2](L=2) 2 [0.02, 28.20, 28.20, -0.05](Leaf=-1)
+GPU [0, 0, 3](L=2) 3 [0.00, 0.05, 0.05, -0.05](Leaf=-1)
+GPU [0, 1, 0](L=2) 4 [0.02, 28.20, 0.05, 28.20](Leaf=-1)
+GPU [0, 1, 1](L=2) 5 [11.76, 14608.23, 23.48, 23.48](Leaf=-1)
+GPU [0, 1, 2](L=2) 6 [11.76, 14608.23, 23.48, -23.48](Leaf=-1)
+GPU [0, 1, 3](L=2) 7 [0.02, 28.20, 0.05, -28.20](Leaf=-1)
+GPU [0, 2, 0](L=2) 8 [0.02, 28.20, -0.05, 28.20](Leaf=-1)
+GPU [0, 2, 1](L=2) 9 [11.76, 14608.23, -23.48, 23.48](Leaf=-1)
+GPU [0, 2, 2](L=2) 10 [11.76, 14608.23, -23.48, -23.48](Leaf=-1)
+GPU [0, 2, 3](L=2) 11 [0.02, 28.20, -0.05, -28.20](Leaf=-1)
+GPU [0, 3, 0](L=2) 12 [0.00, 0.05, -0.05, 0.05](Leaf=-1)
+GPU [0, 3, 1](L=2) 13 [0.02, 28.20, -28.20, 0.05](Leaf=-1)
+GPU [0, 3, 2](L=2) 14 [0.02, 28.20, -28.20, -0.05](Leaf=-1)
+GPU [0, 3, 3](L=2) 15 [0.00, 0.05, -0.05, -0.05](Leaf=-1)
+GPU [1, 0, 0](L=2) 16 [0.02, 0.05, 28.20, 28.20](Leaf=-1)
+GPU [1, 0, 1](L=2) 17 [11.76, 23.48, 14608.23, 23.48](Leaf=-1)
+GPU [1, 0, 2](L=2) 18 [11.76, 23.48, 14608.23, -23.48](Leaf=-1)
+GPU [1, 0, 3](L=2) 19 [0.02, 0.05, 28.20, -28.20](Leaf=-1)
+GPU [1, 1, 0](L=2) 20 [11.76, 23.48, 23.48, 14608.23](Leaf=-1)
+GPU [1, 1, 1](L=2) 21 [6093.30, 12163.07, 12163.07, 12163.07](Leaf=-1)
+GPU [1, 1, 2](L=2) 22 [6093.30, 12163.07, 12163.07, -12163.07](Leaf=-1)
+GPU [1, 1, 3](L=2) 23 [11.76, 23.48, 23.48, -14608.23](Leaf=-1)
+GPU [1, 2, 0](L=2) 24 [11.76, 23.48, -23.48, 14608.23](Leaf=-1)
+GPU [1, 2, 1](L=2) 25 [6093.30, 12163.07, -12163.07, 12163.07](Leaf=-1)
+GPU [1, 2, 2](L=2) 26 [6093.30, 12163.07, -12163.07, -12163.07](Leaf=-1)
+GPU [1, 2, 3](L=2) 27 [11.76, 23.48, -23.48, -14608.23](Leaf=-1)
+GPU [1, 3, 0](L=2) 28 [0.02, 0.05, -28.20, 28.20](Leaf=-1)
+GPU [1, 3, 1](L=2) 29 [11.76, 23.48, -14608.23, 23.48](Leaf=-1)
+GPU [1, 3, 2](L=2) 30 [11.76, 23.48, -14608.23, -23.48](Leaf=-1)
+GPU [1, 3, 3](L=2) 31 [0.02, 0.05, -28.20, -28.20](Leaf=-1)
+GPU [2, 0, 0](L=2) 32 [0.02, -0.05, 28.20, 28.20](Leaf=-1)
+GPU [2, 0, 1](L=2) 33 [11.76, -23.48, 14608.23, 23.48](Leaf=-1)
+GPU [2, 0, 2](L=2) 34 [11.76, -23.48, 14608.23, -23.48](Leaf=-1)
+GPU [2, 0, 3](L=2) 35 [0.02, -0.05, 28.20, -28.20](Leaf=-1)
+GPU [2, 1, 0](L=2) 36 [11.76, -23.48, 23.48, 14608.23](Leaf=-1)
+GPU [2, 1, 1](L=2) 37 [6093.30, -12163.07, 12163.07, 12163.07](Leaf=-1)
+GPU [2, 1, 2](L=2) 38 [6093.30, -12163.07, 12163.07, -12163.07](Leaf=-1)
+GPU [2, 1, 3](L=2) 39 [11.76, -23.48, 23.48, -14608.23](Leaf=-1)
+GPU [2, 2, 0](L=2) 40 [11.76, -23.48, -23.48, 14608.23](Leaf=-1)
+GPU [2, 2, 1](L=2) 41 [6093.30, -12163.07, -12163.07, 12163.07](Leaf=-1)
+GPU [2, 2, 2](L=2) 42 [6093.30, -12163.07, -12163.07, -12163.07](Leaf=-1)
+GPU [2, 2, 3](L=2) 43 [11.76, -23.48, -23.48, -14608.23](Leaf=-1)
+GPU [2, 3, 0](L=2) 44 [0.02, -0.05, -28.20, 28.20](Leaf=-1)
+GPU [2, 3, 1](L=2) 45 [11.76, -23.48, -14608.23, 23.48](Leaf=-1)
+GPU [2, 3, 2](L=2) 46 [11.76, -23.48, -14608.23, -23.48](Leaf=-1)
+GPU [2, 3, 3](L=2) 47 [0.02, -0.05, -28.20, -28.20](Leaf=-1)
+GPU [3, 0, 0](L=2) 48 [0.00, -0.05, 0.05, 0.05](Leaf=-1)
+GPU [3, 0, 1](L=2) 49 [0.02, -28.20, 28.20, 0.05](Leaf=-1)
+GPU [3, 0, 2](L=2) 50 [0.02, -28.20, 28.20, -0.05](Leaf=-1)
+GPU [3, 0, 3](L=2) 51 [0.00, -0.05, 0.05, -0.05](Leaf=-1)
+GPU [3, 1, 0](L=2) 52 [0.02, -28.20, 0.05, 28.20](Leaf=-1)
+GPU [3, 1, 1](L=2) 53 [11.76, -14608.23, 23.48, 23.48](Leaf=-1)
+GPU [3, 1, 2](L=2) 54 [11.76, -14608.23, 23.48, -23.48](Leaf=-1)
+GPU [3, 1, 3](L=2) 55 [0.02, -28.20, 0.05, -28.20](Leaf=-1)
+GPU [3, 2, 0](L=2) 56 [0.02, -28.20, -0.05, 28.20](Leaf=-1)
+GPU [3, 2, 1](L=2) 57 [11.76, -14608.23, -23.48, 23.48](Leaf=-1)
+GPU [3, 2, 2](L=2) 58 [11.76, -14608.23, -23.48, -23.48](Leaf=-1)
+GPU [3, 2, 3](L=2) 59 [0.02, -28.20, -0.05, -28.20](Leaf=-1)
+GPU [3, 3, 0](L=2) 60 [0.00, -0.05, -0.05, 0.05](Leaf=-1)
+GPU [3, 3, 1](L=2) 61 [0.02, -28.20, -28.20, 0.05](Leaf=-1)
+GPU [3, 3, 2](L=2) 62 [0.02, -28.20, -28.20, -0.05](Leaf=-1)
+GPU [3, 3, 3](L=2) 63 [0.00, -0.05, -0.05, -0.05](Leaf=-1)

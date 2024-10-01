@@ -1,0 +1,59 @@
+amr gpu matrix
+num threads: 4194304
+num threads: 4194304
+num threads: 4194432
+num threads: 4194400
+L = 7, best kernel block size: 512 time: 2 ms
+num threads: 4194304
+block_size = 512, time: 2.69 ms
+block_size = 512, time: 2.689 ms
+block_size = 512, time: 2.699 ms
+block_size = 512, time: 2.696 ms
+block_size = 512, time: 2.71 ms
+block_size = 512, time: 2.688 ms
+block_size = 512, time: 2.706 ms
+block_size = 512, time: 2.692 ms
+block_size = 512, time: 2.695 ms
+block_size = 512, time: 2.701 ms
+block_size = 512, time: 2.698 ms
+block_size = 512, time: 2.706 ms
+block_size = 512, time: 2.708 ms
+block_size = 512, time: 2.691 ms
+block_size = 512, time: 2.491 ms
+block_size = 512, time: 2.362 ms
+block_size = 512, time: 2.374 ms
+block_size = 512, time: 2.364 ms
+block_size = 512, time: 2.368 ms
+block_size = 512, time: 2.383 ms
+block_size = 512, time: 2.376 ms
+block_size = 512, time: 2.378 ms
+block_size = 512, time: 2.364 ms
+block_size = 512, time: 2.376 ms
+block_size = 512, time: 2.37 ms
+block_size = 512, time: 2.373 ms
+block_size = 512, time: 2.361 ms
+block_size = 512, time: 2.371 ms
+block_size = 512, time: 2.392 ms
+block_size = 512, time: 2.374 ms
+block_size = 512, time: 2.367 ms
+block_size = 512, time: 2.376 ms
+block_size = 512, time: 2.37 ms
+block_size = 512, time: 2.367 ms
+block_size = 512, time: 2.394 ms
+block_size = 512, time: 2.363 ms
+block_size = 512, time: 2.38 ms
+block_size = 512, time: 2.371 ms
+block_size = 512, time: 2.358 ms
+block_size = 512, time: 2.387 ms
+block_size = 512, time: 2.379 ms
+block_size = 512, time: 2.381 ms
+block_size = 512, time: 2.379 ms
+block_size = 512, time: 2.392 ms
+block_size = 512, time: 2.36 ms
+block_size = 512, time: 2.37 ms
+block_size = 512, time: 2.373 ms
+block_size = 512, time: 2.396 ms
+block_size = 512, time: 2.39 ms
+block_size = 512, time: 2.389 ms
+
+Total time: 46562.5 ms

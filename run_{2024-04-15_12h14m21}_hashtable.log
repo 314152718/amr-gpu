@@ -1,0 +1,11 @@
+amr gpu hashtable
+Time after make1lvlGrid: 259.339 ms
+L = 6, block size 512
+num threads: 524288
+block_size = 512, time: 2.969 ms
+block_size = 512, time: 0.452 ms
+block_size = 512, time: 0.44 ms
+block_size = 512, time: 0.442 ms
+block_size = 512, time: 0.443 ms
+
+Total time: 6908.57 ms
