@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --qos=stellar-debug      # select job queue
+#SBATCH --qos=della-debug      # select job queue
 #SBATCH --job-name=amr-gpu       # create a short name for your job
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
@@ -9,4 +9,4 @@
 #SBATCH --time=02:00:00          # total run time limit (HH:MM:SS)
 
 export DATE=`date +%F_%Hh%Mm%S`
-./rungpu > ./log/run_{$DATE}_hashtable.log 2>&1
+./rungpu > ./log/run_{$DATE}_hashtable_GH.log 2>&1
