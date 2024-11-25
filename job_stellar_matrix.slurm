@@ -9,5 +9,5 @@
 #SBATCH --time=02:00:00          # total run time limit (HH:MM:SS)
 
 export DATE=`date +%F_%Hh%Mm%S`
-./rungpu_matrix > run_{$DATE}_matrix.log 2>&1
+./rungpu_matrix > ./log/run_{$DATE}_matrix.log 2>&1
 

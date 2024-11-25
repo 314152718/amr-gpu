@@ -1,0 +1,138 @@
+amr gpu matrix
+Time after device_vector creation: 526.506 ms
+Time after makeBaseGrid: 3.05 ms
+L = 2, block size 512
+num threads: 512
+block_size = 512, time: 0.06 ms
+block_size = 512, time: 0.025 ms
+block_size = 512, time: 0.024 ms
+block_size = 512, time: 0.024 ms
+block_size = 512, time: 0.025 ms
+block_size = 512, time: 0.024 ms
+block_size = 512, time: 0.025 ms
+block_size = 512, time: 0.025 ms
+block_size = 512, time: 0.025 ms
+block_size = 512, time: 0.025 ms
+
+Total level time for L=2: 529.899 ms
+
+Time after device_vector creation: 0.534 ms
+Time after makeBaseGrid: 0.034 ms
+L = 3, block size 512
+num threads: 1024
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.043 ms
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+
+Total level time for L=3: 0.958 ms
+
+Time after device_vector creation: 0.539 ms
+Time after makeBaseGrid: 0.034 ms
+L = 4, block size 512
+num threads: 5120
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.035 ms
+block_size = 512, time: 0.035 ms
+
+Total level time for L=4: 0.962 ms
+
+Time after device_vector creation: 0.547 ms
+Time after makeBaseGrid: 0.033 ms
+L = 5, block size 512
+num threads: 37888
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+
+Total level time for L=5: 0.977 ms
+
+Time after device_vector creation: 0.556 ms
+Time after makeBaseGrid: 0.088 ms
+L = 6, block size 512
+num threads: 300032
+block_size = 512, time: 0.119 ms
+block_size = 512, time: 0.119 ms
+block_size = 512, time: 0.118 ms
+block_size = 512, time: 0.119 ms
+block_size = 512, time: 0.119 ms
+block_size = 512, time: 0.119 ms
+block_size = 512, time: 0.118 ms
+block_size = 512, time: 0.119 ms
+block_size = 512, time: 0.119 ms
+block_size = 512, time: 0.12 ms
+
+Total level time for L=6: 1.862 ms
+
+Time after device_vector creation: 0.809 ms
+Time after makeBaseGrid: 0.546 ms
+L = 7, block size 512
+num threads: 2397184
+block_size = 512, time: 0.813 ms
+block_size = 512, time: 0.814 ms
+block_size = 512, time: 0.813 ms
+block_size = 512, time: 0.812 ms
+block_size = 512, time: 0.813 ms
+block_size = 512, time: 0.813 ms
+block_size = 512, time: 0.813 ms
+block_size = 512, time: 0.813 ms
+block_size = 512, time: 0.813 ms
+block_size = 512, time: 0.811 ms
+
+Total level time for L=7: 9.513 ms
+
+Time after device_vector creation: 1.969 ms
+Time after makeBaseGrid: 4.198 ms
+L = 8, block size 512
+num threads: 19174400
+block_size = 512, time: 6.311 ms
+block_size = 512, time: 6.311 ms
+block_size = 512, time: 6.311 ms
+block_size = 512, time: 6.311 ms
+block_size = 512, time: 6.309 ms
+block_size = 512, time: 6.311 ms
+block_size = 512, time: 6.31 ms
+block_size = 512, time: 6.31 ms
+block_size = 512, time: 6.311 ms
+block_size = 512, time: 6.31 ms
+
+Total level time for L=8: 69.301 ms
+
+Time after device_vector creation: 8.052 ms
+Time after makeBaseGrid: 33.425 ms
+L = 9, block size 512
+num threads: 153392128
+block_size = 512, time: 50.507 ms
+block_size = 512, time: 50.508 ms
+block_size = 512, time: 49.273 ms
+block_size = 512, time: 31.091 ms
+block_size = 512, time: 31.137 ms
+block_size = 512, time: 31.123 ms
+block_size = 512, time: 30.867 ms
+block_size = 512, time: 31.159 ms
+block_size = 512, time: 31.276 ms
+block_size = 512, time: 31.285 ms
+
+Total level time for L=9: 409.748 ms
+
+Total time: 1026.73 ms
