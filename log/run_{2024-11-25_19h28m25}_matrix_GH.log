@@ -1,0 +1,138 @@
+amr gpu matrix (universal_vector)
+Time after universal_vector creation: 485.931 ms
+Time after makeBaseGrid: 0.56 ms
+L = 2, block size 512
+num threads: 512
+block_size = 512, time: 0.036 ms
+block_size = 512, time: 0.014 ms
+block_size = 512, time: 0.013 ms
+block_size = 512, time: 0.013 ms
+block_size = 512, time: 0.013 ms
+block_size = 512, time: 0.014 ms
+block_size = 512, time: 0.013 ms
+block_size = 512, time: 0.013 ms
+block_size = 512, time: 0.013 ms
+block_size = 512, time: 0.013 ms
+
+Total level time for L=2: 486.698 ms
+
+Time after universal_vector creation: 0.071 ms
+Time after makeBaseGrid: 0.018 ms
+L = 3, block size 512
+num threads: 1024
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.015 ms
+block_size = 512, time: 0.015 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.015 ms
+block_size = 512, time: 0.015 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+
+Total level time for L=3: 0.271 ms
+
+Time after universal_vector creation: 0.064 ms
+Time after makeBaseGrid: 0.015 ms
+L = 4, block size 512
+num threads: 5120
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+
+Total level time for L=4: 0.261 ms
+
+Time after universal_vector creation: 0.085 ms
+Time after makeBaseGrid: 0.015 ms
+L = 5, block size 512
+num threads: 37888
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.016 ms
+block_size = 512, time: 0.017 ms
+block_size = 512, time: 0.016 ms
+
+Total level time for L=5: 0.29 ms
+
+Time after universal_vector creation: 0.24 ms
+Time after makeBaseGrid: 0.027 ms
+L = 6, block size 512
+num threads: 300032
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.037 ms
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.038 ms
+block_size = 512, time: 0.038 ms
+
+Total level time for L=6: 0.667 ms
+
+Time after universal_vector creation: 0.987 ms
+Time after makeBaseGrid: 0.13 ms
+L = 7, block size 512
+num threads: 2397184
+block_size = 512, time: 0.235 ms
+block_size = 512, time: 0.236 ms
+block_size = 512, time: 0.236 ms
+block_size = 512, time: 0.236 ms
+block_size = 512, time: 0.236 ms
+block_size = 512, time: 0.236 ms
+block_size = 512, time: 0.237 ms
+block_size = 512, time: 0.235 ms
+block_size = 512, time: 0.235 ms
+block_size = 512, time: 0.235 ms
+
+Total level time for L=7: 3.497 ms
+
+Time after universal_vector creation: 8.064 ms
+Time after makeBaseGrid: 0.937 ms
+L = 8, block size 512
+num threads: 19174400
+block_size = 512, time: 1.785 ms
+block_size = 512, time: 1.782 ms
+block_size = 512, time: 1.782 ms
+block_size = 512, time: 1.781 ms
+block_size = 512, time: 1.78 ms
+block_size = 512, time: 1.782 ms
+block_size = 512, time: 1.782 ms
+block_size = 512, time: 1.781 ms
+block_size = 512, time: 1.781 ms
+block_size = 512, time: 1.782 ms
+
+Total level time for L=8: 26.843 ms
+
+Time after universal_vector creation: 63.908 ms
+Time after makeBaseGrid: 7.391 ms
+L = 9, block size 512
+num threads: 153392128
+block_size = 512, time: 14.298 ms
+block_size = 512, time: 14.295 ms
+block_size = 512, time: 14.294 ms
+block_size = 512, time: 14.3 ms
+block_size = 512, time: 14.289 ms
+block_size = 512, time: 14.283 ms
+block_size = 512, time: 14.282 ms
+block_size = 512, time: 14.351 ms
+block_size = 512, time: 14.283 ms
+block_size = 512, time: 14.282 ms
+
+Total level time for L=9: 214.294 ms
+
+Total time: 751.267 ms
