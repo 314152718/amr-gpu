@@ -717,7 +717,7 @@ double time_calcGrad(int block_size, int L,
 
         calcGrad<<<grid_size, block_size>>>(find_ref,
                                             insert_keys_it,
-                                            num_inserted[0]); // add for (50)
+                                            num_inserted[0]);
         cudaDeviceSynchronize();
         CHECK_LAST_CUDA_ERROR();
 

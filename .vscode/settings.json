@@ -3,6 +3,7 @@
         "cmath": "cpp",
         "unordered_map": "cpp",
         "limits": "cpp",
-        "iosfwd": "cpp"
+        "iosfwd": "cpp",
+        "string": "cpp"
     }
 }
