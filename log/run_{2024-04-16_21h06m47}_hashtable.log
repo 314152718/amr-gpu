@@ -1,8 +1,0 @@
-amr gpu hashtable
-Time after creating insert_keys and underl_values: 1632.7 ms
-Time after GPU make1lvlGrid: 2.366 ms
-time after creating insert_values: 189.381 ms
-time for GPU insert_vector_pointers: 13.251 ms
-L = 10, block size 512
-terminate called after throwing an instance of 'cuco::cuda_error'
-  what():  CUDA error at: ./cuco/utility/allocator.hpp51: cudaErrorMemoryAllocation out of memory

@@ -1,8 +1,0 @@
-amr gpu matrix
-num threads: 268435456
-num threads: 268435456
-num threads: 268435584
-num threads: 268435552
-L = 7, best kernel block size: 512 time: 4 ms
-
-
