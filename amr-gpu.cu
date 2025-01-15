@@ -68,7 +68,7 @@ void getHindex(idx4 idx_cell, long int &hindex) {
 }
 
 // compute the 3-index for a given Hilbert index and AMR level
-void getHindexInv(long int hindex, int L, idx4& idx_cell) {
+__host__ __device__ void getHindexInv(long int hindex, int L, idx4& idx_cell) {
     int X[NDIM];
     hilbertToTranspose(hindex, L, X);
     int n = 2 << (L - 1), p, q, t;
@@ -337,7 +337,7 @@ __global__ void make1lvlGrid(KeyIter insert_keys_it, ValueIter insert_vals_it, i
             offset = (pow(2, NDIM * L) - 1) / (pow(2, NDIM) - 1);
         idx4 idx_cell;
 
-        getIndexInv(index, L, idx_cell);
+        getHindexInv(index, L, idx_cell);
         insert_keys_it[index + offset] = idx_cell;
         setGridCell(idx_cell, index, true, insert_vals_it, num_inserted, to_offset); // cells have flag_leaf == 1 at L == lbase == 3
         
