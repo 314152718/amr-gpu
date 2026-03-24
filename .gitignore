@@ -1,2 +1,11 @@
-**notes**
-**.out**
+.vscode/
+**/*.out
+**/*.csv
+**/notes**
+**/*.dSYM
+**/*.exe
+**/*.png
+**/*.txt
+**/*.swp
+**/*.log
+**/run*
